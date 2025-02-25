@@ -1,0 +1,46 @@
+===== Optimal Parameters =====
+
+Volatility Window: 24 hours
+Volatility Z-score Threshold: 1.5
+Trading Cost: 0.1000% per trade
+
+High Volatility Parameters:
+  Short MA: 8
+  Long MA: 30
+
+Normal Volatility Parameters:
+  Short MA: 30
+  Long MA: 200
+
+Low Volatility Parameters:
+  Short MA: 50
+  Long MA: 500
+
+===== Training Results =====
+Training Return: 3140.6897%
+
+===== Test Results =====
+Total Return: 63.3087%
+Annual Return: 10.7456%
+Annual Volatility: 106.6223%
+Sharpe Ratio: 0.6319
+Max Drawdown: -92.0432%
+Volatility-Adjusted Return: 138.5135%
+Final Portfolio Value: 16330.87
+Number of Trades: 1087
+Total Trading Costs: 216.1000%
+Buy & Hold Return: 183.3125%
+Buy & Hold Value: 28331.25
+Outperformance: -120.0038%
+Start Date: 2020-01-01 00:00:00
+End Date: 2024-10-20 00:00:00
+Days: 1754
+High Volatility Return: -87.5814%
+Normal Volatility Return: 703.0671%
+Low Volatility Return: 63.7510%
+High Volatility Sharpe: -57.7947%
+Normal Volatility Sharpe: 110.8890%
+Low Volatility Sharpe: 204.3670%
+High Volatility % of Time: 16.1152%
+Normal Volatility % of Time: 73.3995%
+Low Volatility % of Time: 10.4853%

@@ -321,6 +321,9 @@ def run_expanding_window_test():
             print(f"Insufficient test data. Skipping window.")
             continue
         
+        # Calculate buy & hold return for this test period
+        buy_hold_return, buy_hold_value = buy_and_hold(test_df, INITIAL_CAPITAL)
+        
         # Apply strategy to test data
         if USE_VOLATILITY_REGIMES:
             result_df = apply_regime_specific_strategy(test_df, best_params)
@@ -344,6 +347,8 @@ def run_expanding_window_test():
             'test_max_dd': test_results['Max Drawdown'],
             'test_annual_return': test_results['Annual Return'],
             'test_trades': test_results['Number of Trades'],
+            'buy_hold_return': buy_hold_return,
+            'outperformance': test_results['Total Return'] - buy_hold_return,
             'params': best_params
         }
         window_results.append(window_result)
@@ -351,6 +356,8 @@ def run_expanding_window_test():
         # Print test results
         print(f"Training Return: {train_return:.2%}")
         print(f"Test Return: {test_results['Total Return']:.2%}")
+        print(f"Buy & Hold Return: {buy_hold_return:.2%}")
+        print(f"Outperformance: {test_results['Total Return'] - buy_hold_return:.2%}")
         print(f"Test Sharpe: {test_results['Sharpe Ratio']:.2f}")
         print(f"Test Max Drawdown: {test_results['Max Drawdown']:.2%}")
     
@@ -362,17 +369,29 @@ def run_expanding_window_test():
         avg_test_return = np.mean([wr['test_return'] for wr in window_results])
         avg_test_sharpe = np.mean([wr['test_sharpe'] for wr in window_results])
         avg_test_max_dd = np.mean([wr['test_max_dd'] for wr in window_results])
+        avg_bh_return = np.mean([wr['buy_hold_return'] for wr in window_results])
+        avg_outperformance = np.mean([wr['outperformance'] for wr in window_results])
         
         print("\n===== Aggregate Results =====")
         print(f"Number of Windows: {len(window_results)}")
         print(f"Average Test Return: {avg_test_return:.2%}")
+        print(f"Average Buy & Hold Return: {avg_bh_return:.2%}")
+        print(f"Average Outperformance: {avg_outperformance:.2%}")
         print(f"Average Test Sharpe: {avg_test_sharpe:.2f}")
         print(f"Average Test Max Drawdown: {avg_test_max_dd:.2%}")
+        
+        # Calculate success rate (% of periods outperforming buy & hold)
+        outperformed_periods = sum(1 for wr in window_results if wr['outperformance'] > 0)
+        success_rate = outperformed_periods / len(window_results) if len(window_results) > 0 else 0
+        print(f"Success Rate (outperformed B&H): {success_rate:.2%}")
         
         # Save detailed results
         if SAVE_RESULTS:
             if not os.path.exists(RESULTS_DIR):
                 os.makedirs(RESULTS_DIR)
+                
+            # Create summary text file
+            create_expanding_window_summary(window_results)
                 
             # Convert to DataFrame for easy saving
             results_df = pd.DataFrame(window_results)
@@ -382,6 +401,94 @@ def run_expanding_window_test():
             print(f"Detailed results saved to {os.path.join(RESULTS_DIR, f'expanding_window_results_{CURRENCY.replace('/', '_')}.csv')}")
     
     return window_results
+
+def create_expanding_window_summary(window_results):
+    """Create a detailed summary text file for expanding window results"""
+    if not os.path.exists(RESULTS_DIR):
+        os.makedirs(RESULTS_DIR)
+    
+    # Define filename for the summary
+    filename = os.path.join(RESULTS_DIR, f'expanding_window_summary_{CURRENCY.replace("/", "_")}.txt')
+    
+    with open(filename, 'w') as f:
+        # Write header
+        f.write(f"===== EXPANDING WINDOW TESTING SUMMARY FOR {CURRENCY} =====\n\n")
+        
+        # Strategy information
+        f.write("Strategy: ")
+        if USE_VOLATILITY_REGIMES:
+            f.write("Volatility Regime-based SMA\n")
+        else:
+            f.write("Simple SMA\n")
+        
+        if USE_POSITION_SIZING:
+            f.write(f"Position Sizing: {POSITION_SIZING_METHOD}\n")
+            f.write(f"Volatility Method: {VOLATILITY_METHOD}\n")
+            f.write(f"Target Volatility: {TARGET_VOLATILITY:.2%}\n")
+        else:
+            f.write("Position Sizing: Disabled (using binary signals)\n")
+        
+        f.write(f"Trading Fee: {TRADING_FEE_PCT:.4%} per trade\n")
+        f.write(f"Initial Capital: ${INITIAL_CAPITAL:,.2f}\n\n")
+        
+        # Window settings
+        f.write(f"Initial Window: {INITIAL_WINDOW}\n")
+        f.write(f"Minimum Training Size: {MIN_TRAINING_SIZE} days\n")
+        f.write(f"Step Size: {STEP_SIZE} days\n")
+        f.write(f"Test Period Size: {TEST_PERIOD_SIZE} days\n")
+        f.write(f"Total Windows: {len(window_results)}\n\n")
+        
+        # Results for each window
+        f.write("===== WINDOW RESULTS =====\n\n")
+        for i, result in enumerate(window_results):
+            f.write(f"Window {i+1}:\n")
+            f.write(f"  Training: {result['train_start']} to {result['train_end']}\n")
+            f.write(f"  Testing: {result['test_start']} to {result['test_end']}\n")
+            f.write(f"  Training Return: {result['train_return']:.4%}\n")
+            f.write(f"  Test Return: {result['test_return']:.4%}\n")
+            f.write(f"  Buy & Hold Return: {result['buy_hold_return']:.4%}\n")
+            f.write(f"  Outperformance: {result['outperformance']:.4%}\n")
+            f.write(f"  Sharpe Ratio: {result['test_sharpe']:.4f}\n")
+            f.write(f"  Max Drawdown: {result['test_max_dd']:.4%}\n")
+            f.write(f"  Number of Trades: {result['test_trades']}\n")
+            
+            # Write parameters
+            f.write("  Parameters:\n")
+            if USE_VOLATILITY_REGIMES:
+                params = result['params']
+                f.write(f"    Volatility Window: {params['vol_window']} hours\n")
+                f.write(f"    Volatility Z-score Threshold: {params['vol_threshold']}\n")
+                f.write(f"    High Vol SMA: {params['high_vol_params']}\n")
+                f.write(f"    Normal Vol SMA: {params['normal_vol_params']}\n")
+                f.write(f"    Low Vol SMA: {params['low_vol_params']}\n")
+            else:
+                params = result['params']
+                f.write(f"    Short MA: {params['short_window']}\n")
+                f.write(f"    Long MA: {params['long_window']}\n")
+            
+            f.write("\n")
+        
+        # Calculate aggregate statistics
+        avg_test_return = np.mean([wr['test_return'] for wr in window_results])
+        avg_test_sharpe = np.mean([wr['test_sharpe'] for wr in window_results])
+        avg_test_max_dd = np.mean([wr['test_max_dd'] for wr in window_results])
+        avg_bh_return = np.mean([wr['buy_hold_return'] for wr in window_results])
+        avg_outperformance = np.mean([wr['outperformance'] for wr in window_results])
+        
+        # Calculate success rate (% of periods outperforming buy & hold)
+        outperformed_periods = sum(1 for wr in window_results if wr['outperformance'] > 0)
+        success_rate = outperformed_periods / len(window_results) if len(window_results) > 0 else 0
+        
+        # Write aggregate results
+        f.write("===== AGGREGATE RESULTS =====\n\n")
+        f.write(f"Average Test Return: {avg_test_return:.4%}\n")
+        f.write(f"Average Buy & Hold Return: {avg_bh_return:.4%}\n")
+        f.write(f"Average Outperformance: {avg_outperformance:.4%}\n")
+        f.write(f"Average Sharpe Ratio: {avg_test_sharpe:.4f}\n")
+        f.write(f"Average Max Drawdown: {avg_test_max_dd:.4%}\n")
+        f.write(f"Success Rate (outperformed B&H): {success_rate:.2%} ({outperformed_periods}/{len(window_results)})\n")
+    
+    print(f"Expanding window summary saved to {filename}")
 
 def test_sma_parameters(df, regime, regime_type, short_window, long_window):
     """

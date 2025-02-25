@@ -19,10 +19,10 @@ DB_CONFIG = {
 
 # Data and Backtesting Settings
 TRADING_FREQUENCY = "1H"  # Frequency of data (1H = hourly, 1D = daily)
-TRAINING_START = "2021-01-01"
-TRAINING_END = "2022-12-31"
+TRAINING_START = "2018-05-20"
+TRAINING_END = "2020-12-31"
 TESTING_START = "2020-01-01" 
-TESTING_END = "2025-01-01"
+TESTING_END = "2024-10-20"
 CURRENCY = "BTC/USD"  # Base currency to analyze
 INITIAL_CAPITAL = 10000
 TRADING_FEE_PCT = 0.001  # Example: 0.1% trading fee per trade
@@ -74,6 +74,6 @@ TEST_PERIOD_SIZE = 90  # Size of each test period in days
 ############################################################
 
 # Sectional Testing Settings
-USE_SECTIONAL_TESTING = True  # Set to True to divide testing period into sections
+USE_SECTIONAL_TESTING = False  # Set to True to divide testing period into sections
 SECTION_SIZE = 90  # Size of each test section in days
 AGGREGATE_RESULTS = True  # Whether to aggregate and report results across all sections
