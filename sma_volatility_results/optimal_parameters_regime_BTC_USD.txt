@@ -1,0 +1,22 @@
+===== Optimal Parameters =====
+
+Volatility Window: 168 hours
+Volatility Z-score Threshold: 1.5
+Trading Cost: 0.1000% per trade
+
+High Volatility Parameters:
+  Short MA: 8
+  Long MA: 150
+
+Normal Volatility Parameters:
+  Short MA: 10
+  Long MA: 30
+
+Low Volatility Parameters:
+  Short MA: 30
+  Long MA: 400
+
+===== Training Results =====
+Training Return: 578.9006%
+
+===== Test Results =====

@@ -1,0 +1,294 @@
+===== SECTIONAL TESTING SUMMARY FOR BTC/USD =====
+
+Training Period: 2021-01-01 to 2022-12-31
+Training Return: 578.9006%
+
+Strategy: Volatility Regime-based SMA
+Volatility Window: 168 hours
+Volatility Z-score Threshold: 1.5
+
+High Volatility Parameters:
+  Short MA: 8
+  Long MA: 150
+
+Normal Volatility Parameters:
+  Short MA: 10
+  Long MA: 30
+
+Low Volatility Parameters:
+  Short MA: 30
+  Long MA: 400
+
+Position Sizing: volatility
+Volatility Method: parkinson
+Target Volatility: 20.00%
+
+Trading Fee: 0.1000% per trade
+Initial Capital: $10,000.00
+
+Testing Period: 2020-01-01 to 2025-01-01
+Section Size: 90 days
+Number of Sections: 21
+
+===== SECTION RESULTS =====
+
+Section 1: 2020-01-01 to 2020-03-31
+  Total Return: 22.6154%
+  Annual Return: 128.6123%
+  Sharpe Ratio: 3.6945
+  Max Drawdown: -4.9050%
+  Number of Trades: 78
+  Buy & Hold Return: -9.7604%
+  Outperformance: 32.3758%
+  High Vol: 14.11% of time | Return: 5.0689%
+  Normal Vol: 77.83% of time | Return: 9.1761%
+  Low Vol: 8.05% of time | Return: 6.8916%
+
+Section 2: 2020-03-31 to 2020-06-29
+  Total Return: 7.7524%
+  Annual Return: 35.3659%
+  Sharpe Ratio: 1.5375
+  Max Drawdown: -9.9147%
+  Number of Trades: 76
+  Buy & Hold Return: 41.2208%
+  Outperformance: -33.4684%
+  High Vol: 13.93% of time | Return: 3.5317%
+  Normal Vol: 75.57% of time | Return: 4.8569%
+  Low Vol: 10.50% of time | Return: -0.7440%
+
+Section 3: 2020-06-29 to 2020-09-27
+  Total Return: 2.4576%
+  Annual Return: 10.3474%
+  Sharpe Ratio: 0.5959
+  Max Drawdown: -7.7313%
+  Number of Trades: 81
+  Buy & Hold Return: 18.2706%
+  Outperformance: -15.8130%
+  High Vol: 16.84% of time | Return: 5.8032%
+  Normal Vol: 81.49% of time | Return: -2.8372%
+  Low Vol: 1.67% of time | Return: -0.3343%
+
+Section 4: 2020-09-27 to 2020-12-26
+  Total Return: 11.8050%
+  Annual Return: 57.2309%
+  Sharpe Ratio: 2.2703
+  Max Drawdown: -9.1791%
+  Number of Trades: 73
+  Buy & Hold Return: 128.3451%
+  Outperformance: -116.5400%
+  High Vol: 21.70% of time | Return: 3.0776%
+  Normal Vol: 72.56% of time | Return: 7.9912%
+  Low Vol: 5.74% of time | Return: 0.4405%
+
+Section 5: 2020-12-26 to 2021-03-26
+  Total Return: 12.1901%
+  Annual Return: 59.4388%
+  Sharpe Ratio: 2.4012
+  Max Drawdown: -9.2390%
+  Number of Trades: 82
+  Buy & Hold Return: 111.7775%
+  Outperformance: -99.5874%
+  High Vol: 5.32% of time | Return: 0.6682%
+  Normal Vol: 86.02% of time | Return: 4.8635%
+  Low Vol: 8.65% of time | Return: 6.2767%
+
+Section 6: 2021-03-26 to 2021-06-24
+  Total Return: 8.1333%
+  Annual Return: 37.3171%
+  Sharpe Ratio: 1.6184
+  Max Drawdown: -8.4911%
+  Number of Trades: 76
+  Buy & Hold Return: -36.2716%
+  Outperformance: 44.4049%
+  High Vol: 17.31% of time | Return: 4.6747%
+  Normal Vol: 82.23% of time | Return: 2.6199%
+  Low Vol: 0.46% of time | Return: 0.6668%
+
+Section 7: 2021-06-24 to 2021-09-22
+  Total Return: 5.4038%
+  Annual Return: 23.7925%
+  Sharpe Ratio: 1.1102
+  Max Drawdown: -9.1854%
+  Number of Trades: 66
+  Buy & Hold Return: 23.5280%
+  Outperformance: -18.1243%
+  High Vol: 15.55% of time | Return: 5.0194%
+  Normal Vol: 80.75% of time | Return: 0.5552%
+  Low Vol: 3.70% of time | Return: -0.1881%
+
+Section 8: 2021-09-22 to 2021-12-21
+  Total Return: -5.2272%
+  Annual Return: -19.5660%
+  Sharpe Ratio: -0.9417
+  Max Drawdown: -10.5567%
+  Number of Trades: 93
+  Buy & Hold Return: 14.1010%
+  Outperformance: -19.3282%
+  High Vol: 13.42% of time | Return: 1.6798%
+  Normal Vol: 78.81% of time | Return: -7.3153%
+  Low Vol: 7.77% of time | Return: 0.5636%
+
+Section 9: 2021-12-21 to 2022-03-21
+  Total Return: 16.1574%
+  Annual Return: 83.5696%
+  Sharpe Ratio: 2.9584
+  Max Drawdown: -5.4285%
+  Number of Trades: 76
+  Buy & Hold Return: -11.4955%
+  Outperformance: 27.6529%
+  High Vol: 15.59% of time | Return: 1.1517%
+  Normal Vol: 78.07% of time | Return: 9.5349%
+  Low Vol: 6.34% of time | Return: 4.8386%
+
+Section 10: 2022-03-21 to 2022-06-19
+  Total Return: 21.4960%
+  Annual Return: 120.2652%
+  Sharpe Ratio: 3.6755
+  Max Drawdown: -7.2881%
+  Number of Trades: 72
+  Buy & Hold Return: -54.2983%
+  Outperformance: 75.7943%
+  High Vol: 22.58% of time | Return: 18.1265%
+  Normal Vol: 76.12% of time | Return: 2.0946%
+  Low Vol: 1.30% of time | Return: 0.7423%
+
+Section 11: 2022-06-19 to 2022-09-17
+  Total Return: 10.0103%
+  Annual Return: 47.2431%
+  Sharpe Ratio: 1.8529
+  Max Drawdown: -7.8167%
+  Number of Trades: 76
+  Buy & Hold Return: 5.3570%
+  Outperformance: 4.6533%
+  High Vol: 11.11% of time | Return: 1.0552%
+  Normal Vol: 77.00% of time | Return: 10.5153%
+  Low Vol: 11.89% of time | Return: -1.4964%
+
+Section 12: 2022-09-17 to 2022-12-16
+  Total Return: 16.3771%
+  Annual Return: 84.9823%
+  Sharpe Ratio: 2.8409
+  Max Drawdown: -7.5859%
+  Number of Trades: 66
+  Buy & Hold Return: -12.6679%
+  Outperformance: 29.0451%
+  High Vol: 8.38% of time | Return: 3.7368%
+  Normal Vol: 83.53% of time | Return: 6.6566%
+  Low Vol: 8.10% of time | Return: 5.1834%
+
+Section 13: 2022-12-16 to 2023-03-16
+  Total Return: 14.4587%
+  Annual Return: 72.9230%
+  Sharpe Ratio: 2.4584
+  Max Drawdown: -9.8927%
+  Number of Trades: 84
+  Buy & Hold Return: 39.4753%
+  Outperformance: -25.0167%
+  High Vol: 17.82% of time | Return: 7.0435%
+  Normal Vol: 77.46% of time | Return: 3.5304%
+  Low Vol: 4.72% of time | Return: 3.2810%
+
+Section 14: 2023-03-16 to 2023-06-14
+  Total Return: -8.3768%
+  Annual Return: -29.8689%
+  Sharpe Ratio: -1.4466
+  Max Drawdown: -11.1426%
+  Number of Trades: 76
+  Buy & Hold Return: 6.9306%
+  Outperformance: -15.3074%
+  High Vol: 14.58% of time | Return: -3.1471%
+  Normal Vol: 82.00% of time | Return: -3.3536%
+  Low Vol: 3.42% of time | Return: -2.1170%
+
+Section 15: 2023-06-14 to 2023-09-12
+  Total Return: -6.0712%
+  Annual Return: -22.4319%
+  Sharpe Ratio: -0.9652
+  Max Drawdown: -15.5770%
+  Number of Trades: 79
+  Buy & Hold Return: -3.0136%
+  Outperformance: -3.0576%
+  High Vol: 11.89% of time | Return: -3.9342%
+  Normal Vol: 74.32% of time | Return: -2.8643%
+  Low Vol: 13.79% of time | Return: 0.6587%
+
+Section 16: 2023-09-12 to 2023-12-11
+  Total Return: 18.8378%
+  Annual Return: 101.3641%
+  Sharpe Ratio: 3.2518
+  Max Drawdown: -6.9281%
+  Number of Trades: 92
+  Buy & Hold Return: 73.1775%
+  Outperformance: -54.3397%
+  High Vol: 6.76% of time | Return: 3.1212%
+  Normal Vol: 88.06% of time | Return: 10.4183%
+  Low Vol: 5.18% of time | Return: 4.3676%
+
+Section 17: 2023-12-11 to 2024-03-10
+  Total Return: -0.3089%
+  Annual Return: -1.2468%
+  Sharpe Ratio: 0.0533
+  Max Drawdown: -8.7193%
+  Number of Trades: 89
+  Buy & Hold Return: 56.9743%
+  Outperformance: -57.2831%
+  High Vol: 23.37% of time | Return: 3.0646%
+  Normal Vol: 74.27% of time | Return: -8.5219%
+  Low Vol: 2.36% of time | Return: 5.7377%
+
+Section 18: 2024-03-10 to 2024-06-08
+  Total Return: -5.1696%
+  Annual Return: -19.3674%
+  Sharpe Ratio: -0.8805
+  Max Drawdown: -9.6128%
+  Number of Trades: 83
+  Buy & Hold Return: 1.2598%
+  Outperformance: -6.4294%
+  High Vol: 7.54% of time | Return: 0.8192%
+  Normal Vol: 85.65% of time | Return: -4.5318%
+  Low Vol: 6.80% of time | Return: -1.4752%
+
+Section 19: 2024-06-08 to 2024-09-06
+  Total Return: 4.9799%
+  Annual Return: 21.7859%
+  Sharpe Ratio: 0.9859
+  Max Drawdown: -9.1904%
+  Number of Trades: 81
+  Buy & Hold Return: -19.0269%
+  Outperformance: 24.0068%
+  High Vol: 16.75% of time | Return: 1.6266%
+  Normal Vol: 83.25% of time | Return: 3.2996%
+  Low Vol: 0.00% of time | Return: 0.0000%
+
+Section 20: 2024-09-06 to 2024-12-05
+  Total Return: 5.5539%
+  Annual Return: 24.5090%
+  Sharpe Ratio: 1.0728
+  Max Drawdown: -7.9663%
+  Number of Trades: 72
+  Buy & Hold Return: 75.3450%
+  Outperformance: -69.7911%
+  High Vol: 14.58% of time | Return: 5.9735%
+  Normal Vol: 80.56% of time | Return: 0.7412%
+  Low Vol: 4.86% of time | Return: -1.1288%
+
+Section 21: 2024-12-05 to 2025-01-01
+  Total Return: -2.7394%
+  Annual Return: -31.3052%
+  Sharpe Ratio: -1.5766
+  Max Drawdown: -5.6581%
+  Number of Trades: 22
+  Buy & Hold Return: -4.3407%
+  Outperformance: 1.6013%
+  High Vol: 0.00% of time | Return: 0.0000%
+  Normal Vol: 100.00% of time | Return: -2.7394%
+  Low Vol: 0.00% of time | Return: 0.0000%
+
+===== AGGREGATE RESULTS =====
+
+Average Section Return: 7.1588%
+Compounded Return Across All Sections: 295.2481%
+Average Sharpe Ratio: 1.2651
+Average Max Drawdown: -8.6671%
+Average Trades per Section: 75.9
+Average Outperformance vs Buy & Hold: -14.0263%
