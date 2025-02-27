@@ -1,0 +1,104 @@
+===== ENHANCED SMA STRATEGY RESULTS =====
+
+Strategy Configuration:
+Trading Frequency: 1H
+Initial Capital: $10,000.00
+Trading Fee: 0.1000% per trade
+
+Optimized Parameters:
+vol_method: parkinson
+vol_lookback: 100
+short_window: 8
+long_window: 21
+
+Performance Metrics:
+total_return: 61.7920%
+annualized_return: 13.4878%
+volatility: 1.6229%
+max_drawdown: -10.4261%
+sharpe_ratio: 0.8663
+sortino_ratio: 0.8901
+calmar_ratio: 0.0134
+win_rate: 49.3162%
+gain_to_pain: 1.0884
+
+Buy & Hold Return: 134.8010%
+Outperformance: -73.0090%
+
+Number of Trades: 1954
+Average Trade Duration: 14.00 hours
+
+===== REGIME PERFORMANCE =====
+
+Low Volatility (Regime 0):
+  Opt-out: Disabled
+  Percentage of time: 29.5620%
+  Strategy return: 31.6391%
+  Buy & Hold return: 27.9258%
+  Outperformance: 3.7133%
+  Sharpe: 1.0021
+  Sortino: 1.4997
+  Trades in regime: 715
+
+Medium Volatility (Regime 1):
+  Opt-out: Disabled
+  Percentage of time: 51.0131%
+  Strategy return: 18.3596%
+  Buy & Hold return: 35.0702%
+  Outperformance: -16.7106%
+  Sharpe: 1.0029
+  Sortino: 0.6947
+  Trades in regime: 1288
+
+High Volatility (Regime 2):
+  Opt-out: Enabled
+  Percentage of time: 19.4248%
+  Strategy return: 3.8410%
+  Buy & Hold return: 35.8884%
+  Outperformance: -32.0474%
+  Sharpe: 9.5954
+  Sortino: 0.1920
+  Trades in regime: 34
+
+===== CROSS-VALIDATION RESULTS =====
+
+Fold 1:
+  Parameters: {'vol_method': 'parkinson', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Score: 2.9006
+  Sharpe: 4.5408
+  Sortino: 3.3351
+  Return: 12.5887%
+  Max DD: -1.8671%
+
+Fold 2:
+  Parameters: {'vol_method': 'parkinson', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Score: 2.3337
+  Sharpe: 3.8382
+  Sortino: 2.4988
+  Return: 13.2744%
+  Max DD: -2.5350%
+
+Fold 3:
+  Parameters: {'vol_method': 'garch', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Score: 1.5613
+  Sharpe: 2.7521
+  Sortino: 1.4650
+  Return: 10.5820%
+  Max DD: -3.8530%
+
+Fold 4:
+  Parameters: {'vol_method': 'yang_zhang', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Score: 1.8614
+  Sharpe: 3.0411
+  Sortino: 2.0786
+  Return: 17.1166%
+  Max DD: -4.9142%
+
+Fold 5:
+  Parameters: {'vol_method': 'garch', 'vol_lookback': 20, 'short_window': 13, 'long_window': 34}
+  Score: 2.3491
+  Sharpe: 4.2660
+  Sortino: 2.0623
+  Return: 25.2485%
+  Max DD: -5.3489%
+

@@ -1,0 +1,204 @@
+================================================================================
+Enhanced SMA Strategy Runner
+Started at: 2025-02-27 23:46:24
+Logging to: logs\strategy_run_20250227_234624.log
+================================================================================
+
+Running enhanced SMA backtest...
+Starting enhanced SMA backtest for BTC/USD
+Connection pool initialized with 1-10 connections
+Successfully acquired connection from pool
+Fetching data from 2018-05-20 to 2024-10-20
+
+Fetching data for BTC/USD:
+Start: 2018-05-20
+End: 2024-10-20
+Fetched 56281 hourly records
+Date range: 2018-05-20 00:00:00 to 2024-10-20 00:00:00
+Optimizing parameters with time series cross-validation...
+
+CV Fold 1/5:
+  Training: 2018-05-20 to 2018-08-18
+  Validation: 2018-08-18 to 2018-09-17
+  Tested 50/198 parameter combinations
+  Tested 100/198 parameter combinations
+  Tested 150/198 parameter combinations
+  Tested 198/198 parameter combinations
+  Best parameters for fold 1:
+    {'vol_method': 'parkinson', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Best score: 2.9006
+  Sharpe: 4.5408, Sortino: 3.3351, Calmar: 0.2790
+  Return: 12.5887%, Max DD: -1.8671%
+
+CV Fold 2/5:
+  Training: 2018-05-20 to 2018-09-17
+  Validation: 2018-09-17 to 2018-10-17
+  Tested 50/198 parameter combinations
+  Tested 100/198 parameter combinations
+  Tested 150/198 parameter combinations
+  Tested 198/198 parameter combinations
+  Best parameters for fold 2:
+    {'vol_method': 'parkinson', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Best score: 2.3337
+  Sharpe: 3.8382, Sortino: 2.4988, Calmar: 0.1626
+  Return: 13.2744%, Max DD: -2.5350%
+
+CV Fold 3/5:
+  Training: 2018-05-20 to 2018-10-17
+  Validation: 2018-10-17 to 2018-11-16
+  Tested 50/198 parameter combinations
+  Tested 100/198 parameter combinations
+  Tested 150/198 parameter combinations
+  Tested 198/198 parameter combinations
+  Best parameters for fold 3:
+    {'vol_method': 'garch', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Best score: 1.5613
+  Sharpe: 2.7521, Sortino: 1.4650, Calmar: 0.0698
+  Return: 10.5820%, Max DD: -3.8530%
+
+CV Fold 4/5:
+  Training: 2018-05-20 to 2018-11-16
+  Validation: 2018-11-16 to 2018-12-16
+  Tested 50/198 parameter combinations
+  Tested 100/198 parameter combinations
+  Tested 150/198 parameter combinations
+  Tested 198/198 parameter combinations
+  Best parameters for fold 4:
+    {'vol_method': 'yang_zhang', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Best score: 1.8614
+  Sharpe: 3.0411, Sortino: 2.0786, Calmar: 0.0712
+  Return: 17.1166%, Max DD: -4.9142%
+
+CV Fold 5/5:
+  Training: 2018-05-20 to 2018-12-16
+  Validation: 2018-12-16 to 2019-01-15
+  Tested 50/198 parameter combinations
+  Tested 100/198 parameter combinations
+  Tested 150/198 parameter combinations
+  Tested 198/198 parameter combinations
+  Best parameters for fold 5:
+    {'vol_method': 'garch', 'vol_lookback': 20, 'short_window': 13, 'long_window': 34}
+  Best score: 2.3491
+  Sharpe: 4.2660, Sortino: 2.0623, Calmar: 0.0799
+  Return: 25.2485%, Max DD: -5.3489%
+
+Parameter stability score: 0.6904
+
+Top 5 parameter sets across all folds:
+1. {'vol_method': 'parkinson', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+   Avg Score: 2.1602, Folds: 5/5
+   Avg Sharpe: 3.5266, Avg Sortino: 2.3665, Avg Calmar: 0.1322
+   Avg Return: 15.6799%, Avg Max DD: -3.6961%
+   Final Score (with stability): 1.4253
+2. {'vol_method': 'yang_zhang', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+   Avg Score: 2.1178, Folds: 5/5
+   Avg Sharpe: 3.4213, Avg Sortino: 2.3678, Avg Calmar: 0.1299
+   Avg Return: 15.4372%, Avg Max DD: -3.5705%
+   Final Score (with stability): 1.4041
+3. {'vol_method': 'garch', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+   Avg Score: 1.8761, Folds: 5/5
+   Avg Sharpe: 3.1482, Avg Sortino: 1.9479, Avg Calmar: 0.1081
+   Avg Return: 13.1474%, Avg Max DD: -3.1717%
+   Final Score (with stability): 1.2833
+4. {'vol_method': 'parkinson', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+   Avg Score: 1.7314, Folds: 5/5
+   Avg Sharpe: 2.9719, Avg Sortino: 1.7288, Avg Calmar: 0.0800
+   Avg Return: 11.7278%, Avg Max DD: -4.3039%
+   Final Score (with stability): 1.2109
+5. {'vol_method': 'yang_zhang', 'vol_lookback': 50, 'short_window': 34, 'long_window': 55}
+   Avg Score: 1.7272, Folds: 5/5
+   Avg Sharpe: 2.9831, Avg Sortino: 1.7154, Avg Calmar: 0.0644
+   Avg Return: 10.6306%, Avg Max DD: -6.4111%
+   Final Score (with stability): 1.2088
+
+Selected best parameters: {'vol_method': 'parkinson', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+Applying enhanced SMA strategy with reduced trading frequency...
+
+REGIME DISTRIBUTION (DEBUGGING):
+Regime 1: 16994 periods (51.01%)
+Regime 0: 9848 periods (29.56%)
+Regime 2: 6471 periods (19.42%)
+
+RAW SIGNAL DISTRIBUTION (DEBUGGING):
+Signal 1: 17016 periods (51.08%)
+Signal -1: 16284 periods (48.88%)
+Signal 0: 13 periods (0.04%)
+
+FILTERED SIGNAL DISTRIBUTION (DEBUGGING):
+Signal 0: 16274 periods (48.85%)
+Signal 1: 8887 periods (26.68%)
+Signal -1: 8152 periods (24.47%)
+
+REGIME OPT-OUT SETTINGS (DEBUGGING):
+Regime 0: Trading enabled
+Regime 1: Trading enabled
+Regime 2: Opt-out
+
+POSITION SIZING DEBUG:
+Target volatility: 0.15
+Min size: 0.1, Max size: 1.0
+Materiality threshold: 0.1
+
+REGIME ADJUSTMENT FACTORS:
+Regime 0: Average factor = 1.00
+Regime 1: Average factor = 0.80
+Regime 2: Average factor = 0.50
+
+Zero positions before opt-out: 0
+Applied opt-out for regime 2: 6471 periods affected
+Zero positions after regime adjustment: 6471
+Zero positions after clipping: 0
+Zero positions after final opt-out: 6471
+Zero positions after rebalancing: 6277
+
+Final position sizing stats:
+Min: 0.0
+Max: 1.0
+Mean: 0.2581
+Zero positions: 6277 out of 33313
+
+POSITION SIZE STATS (DEBUGGING):
+Zero position size: 6277 periods (18.84%)
+Min position size: 0.0
+Max position size: 1.0
+Mean position size: 0.25808188205861127
+
+SIZED POSITION DISTRIBUTION (DEBUGGING):
+Zero positions: 22312 periods (66.98%)
+Non-zero positions: 11001 periods
+Positive positions: 6116 periods
+Negative positions: 4885 periods
+
+Strategy applied with 1845 trades
+Connection returned to pool.
+
+===== Test Results =====
+Total Return: 56.3426%
+Annualized Return: 12.4699%
+Volatility: 1.5865%
+Max Drawdown: -10.4701%
+Sharpe Ratio: 0.7460
+Sortino Ratio: 0.8420
+Calmar Ratio: 0.0124
+Win Rate: 49.2673%
+Gain-to-Pain Ratio: 1.0831
+Buy & Hold Return: 134.8010%
+Outperformance: -78.4585%
+Results plot saved to enhanced_sma_results\enhanced_sma_results_BTC_USD.png
+Results saved to enhanced_sma_results\enhanced_sma_results_BTC_USD.txt
+Data saved to enhanced_sma_results\enhanced_sma_data_BTC_USD.csv
+Model saved to enhanced_sma_results\enhanced_sma_model_BTC_USD.pkl
+
+Total execution time: 12.33 minutes
+
+Execution complete!
+Total runtime: 12.34 minutes
+
+Strategy Summary:
+  Total Return: 56.34%
+  Sharpe Ratio: 0.75
+  Max Drawdown: -10.47%
+  Win Rate: 49.27%
+
+Log file saved to: logs\strategy_run_20250227_234624.log
+================================================================================

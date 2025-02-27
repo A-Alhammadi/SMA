@@ -1,0 +1,148 @@
+===== ENHANCED SMA STRATEGY RESULTS =====
+
+Strategy Configuration:
+Trading Frequency: 1H
+Initial Capital: $10,000.00
+Trading Fee: 0.1000% per trade
+
+Optimized Parameters:
+vol_method: yang_zhang
+vol_lookback: 50
+short_window: 8
+long_window: 21
+
+Performance Metrics:
+total_return: -4.1298%
+annualized_return: -1.1029%
+volatility: 2.4089%
+max_drawdown: -24.6398%
+sharpe_ratio: 0.0113
+sortino_ratio: -0.0071
+calmar_ratio: -0.0000
+win_rate: 49.6881%
+gain_to_pain: 0.9997
+
+Buy & Hold Return: 134.8010%
+Outperformance: -138.9308%
+
+Number of Trades: 2132
+Win/Loss Ratio: 0.99
+Average Profit per Trade: -0.0019%
+
+===== REGIME PERFORMANCE =====
+
+Low Volatility (Regime 0):
+  Opt-out: Disabled
+  Position Size Factor: 1.00
+  Percentage of time: 23.6514%
+  Strategy return: -5.3726%
+  Buy & Hold return: 14.3411%
+  Outperformance: -19.7137%
+  Regime-specific parameters:
+    trend_strength_threshold: 0.2
+    trailing_stop_distance: 0.03
+    profit_taking_threshold: 0.07
+    min_holding_period: 24
+  Sharpe: -0.3810
+  Sortino: -0.2178
+  Trades in regime: 485 (22.75% of all trades)
+  Win rate in regime: 800.4124%
+
+Medium Volatility (Regime 1):
+  Opt-out: Disabled
+  Position Size Factor: 0.80
+  Percentage of time: 49.8544%
+  Strategy return: 22.5577%
+  Buy & Hold return: 16.1100%
+  Outperformance: 6.4477%
+  Regime-specific parameters:
+    trend_strength_threshold: 0.3
+    trailing_stop_distance: 0.02
+    profit_taking_threshold: 0.05
+    min_holding_period: 12
+  Sharpe: 1.0027
+  Sortino: 0.8583
+  Trades in regime: 1030 (48.31% of all trades)
+  Win rate in regime: 802.9126%
+
+High Volatility (Regime 2):
+  Opt-out: Disabled
+  Position Size Factor: 0.20
+  Percentage of time: 26.4942%
+  Strategy return: -17.3341%
+  Buy & Hold return: 76.8594%
+  Outperformance: -94.1935%
+  Regime-specific parameters:
+    trend_strength_threshold: 0.5
+    trailing_stop_distance: 0.015
+    profit_taking_threshold: 0.03
+    min_holding_period: 6
+  Sharpe: -3.1387
+  Sortino: -2.2987
+  Trades in regime: 589 (27.63% of all trades)
+  Win rate in regime: 736.1630%
+
+===== COUNTER-TREND STRATEGY =====
+Enabled: True
+Only High Volatility Regime: True
+RSI Period: 14
+Oversold Threshold: 30
+Overbought Threshold: 70
+Signal Strength: 0.5
+
+===== VOLATILITY-ADJUSTED RISK MANAGEMENT =====
+Enabled: True
+Risk multipliers by regime:
+  Regime 0: 1.20
+  Regime 1: 1.00
+  Regime 2: 0.70
+
+===== DYNAMIC MATERIALITY THRESHOLDS =====
+Enabled: True
+Materiality thresholds by regime:
+  Regime 0: 0.0700
+  Regime 1: 0.0500
+  Regime 2: 0.0300
+
+===== CROSS-VALIDATION RESULTS =====
+
+Fold 1:
+  Parameters: {'vol_method': 'yang_zhang', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+  Score: 2.7341
+  Sharpe: 4.5890
+  Sortino: 2.8243
+  Return: 11.1890%
+  Max DD: -2.7343%
+
+Fold 2:
+  Parameters: {'vol_method': 'parkinson', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+  Score: 2.1481
+  Sharpe: 3.9128
+  Sortino: 1.8304
+  Return: 10.5401%
+  Max DD: -2.9544%
+
+Fold 3:
+  Parameters: {'vol_method': 'yang_zhang', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+  Score: 1.4743
+  Sharpe: 2.4472
+  Sortino: 1.5647
+  Return: 10.3737%
+  Max DD: -3.0368%
+
+Fold 4:
+  Parameters: {'vol_method': 'yang_zhang', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+  Score: 1.4975
+  Sharpe: 2.4793
+  Sortino: 1.6338
+  Return: 13.4044%
+  Max DD: -5.3754%
+
+Fold 5:
+  Parameters: {'vol_method': 'garch', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Score: 2.3265
+  Sharpe: 4.0237
+  Sortino: 2.3076
+  Return: 26.0388%
+  Max DD: -5.3208%
+

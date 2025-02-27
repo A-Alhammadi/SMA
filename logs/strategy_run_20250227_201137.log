@@ -1,0 +1,100 @@
+================================================================================
+Enhanced SMA Strategy Runner
+Started at: 2025-02-27 20:11:37
+Logging to: logs\strategy_run_20250227_201137.log
+================================================================================
+
+Running enhanced SMA backtest...
+Starting enhanced SMA backtest for BTC/USD
+Connection pool initialized with 1-10 connections
+Successfully acquired connection from pool
+Fetching data from 2018-05-20 to 2024-10-20
+
+Fetching data for BTC/USD:
+Start: 2018-05-20
+End: 2024-10-20
+Fetched 56281 hourly records
+Date range: 2018-05-20 00:00:00 to 2024-10-20 00:00:00
+Optimizing parameters with time series cross-validation...
+
+CV Fold 1/5:
+  Training: 2018-05-20 to 2018-08-18
+  Validation: 2018-08-18 to 2018-09-17
+  Tested 50/198 parameter combinations
+  Tested 100/198 parameter combinations
+  Tested 150/198 parameter combinations
+  Tested 198/198 parameter combinations
+  Best parameters for fold 1:
+    {'vol_method': 'parkinson', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Best score: 2.9006
+  Sharpe: 4.5408, Sortino: 3.3351, Calmar: 0.2790
+  Return: 12.5887%, Max DD: -1.8671%
+
+CV Fold 2/5:
+  Training: 2018-05-20 to 2018-09-17
+  Validation: 2018-09-17 to 2018-10-17
+  Tested 50/198 parameter combinations
+  Tested 100/198 parameter combinations
+  Tested 150/198 parameter combinations
+  Tested 198/198 parameter combinations
+  Best parameters for fold 2:
+    {'vol_method': 'parkinson', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Best score: 2.3337
+  Sharpe: 3.8382, Sortino: 2.4988, Calmar: 0.1626
+  Return: 13.2744%, Max DD: -2.5350%
+
+CV Fold 3/5:
+  Training: 2018-05-20 to 2018-10-17
+  Validation: 2018-10-17 to 2018-11-16
+  Tested 50/198 parameter combinations
+  Tested 100/198 parameter combinations
+  Tested 150/198 parameter combinations
+  Tested 198/198 parameter combinations
+  Best parameters for fold 3:
+    {'vol_method': 'garch', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Best score: 1.5613
+  Sharpe: 2.7521, Sortino: 1.4650, Calmar: 0.0698
+  Return: 10.5820%, Max DD: -3.8530%
+
+CV Fold 4/5:
+  Training: 2018-05-20 to 2018-11-16
+  Validation: 2018-11-16 to 2018-12-16
+  Tested 50/198 parameter combinations
+  Tested 100/198 parameter combinations
+  Tested 150/198 parameter combinations
+  Tested 198/198 parameter combinations
+  Best parameters for fold 4:
+    {'vol_method': 'yang_zhang', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Best score: 1.8614
+  Sharpe: 3.0411, Sortino: 2.0786, Calmar: 0.0712
+  Return: 17.1166%, Max DD: -4.9142%
+
+CV Fold 5/5:
+  Training: 2018-05-20 to 2018-12-16
+  Validation: 2018-12-16 to 2019-01-15
+  Tested 50/198 parameter combinations
+  Tested 100/198 parameter combinations
+  Tested 150/198 parameter combinations
+  Tested 198/198 parameter combinations
+  Best parameters for fold 5:
+    {'vol_method': 'garch', 'vol_lookback': 20, 'short_window': 13, 'long_window': 34}
+  Best score: 2.3491
+  Sharpe: 4.2660, Sortino: 2.0623, Calmar: 0.0799
+  Return: 25.2485%, Max DD: -5.3489%
+Error in backtest: 'params'
+Traceback (most recent call last):
+  File "C:\Users\haman\Dropbox\My PC (LAPTOP-QV7RR5UL)\Desktop\Sma\enhanced_sma.py", line 1576, in run_enhanced_backtest
+    best_params, cv_results = optimize_parameters_with_cv(df, STRATEGY_CONFIG, splits)
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\haman\Dropbox\My PC (LAPTOP-QV7RR5UL)\Desktop\Sma\enhanced_sma.py", line 1321, in optimize_parameters_with_cv
+    stability_score = calculate_parameter_stability([result for result in cv_results if 'best_params' in result])
+  File "C:\Users\haman\Dropbox\My PC (LAPTOP-QV7RR5UL)\Desktop\Sma\enhanced_sma.py", line 980, in calculate_parameter_stability
+    param_values.append(result['params'])
+                        ~~~~~~^^^^^^^^^^
+KeyError: 'params'
+
+Execution complete!
+Total runtime: 13.05 minutes
+
+Log file saved to: logs\strategy_run_20250227_201137.log
+================================================================================
