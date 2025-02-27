@@ -1,6 +1,3 @@
-# enhanced_config.py
-# Enhanced configuration file for the advanced SMA strategy
-
 ############################################################
 #                   DATABASE SETTINGS                      #
 ############################################################
@@ -41,89 +38,38 @@ STRATEGY_CONFIG = {
         'min_history_multiplier': 5,  # Minimum history required as multiplier of lookback
     },
     
-    # Regime detection settings
+    # Regime detection settings - now using HMM as default
     'regime_detection': {
-        'method': 'kmeans',  # Options: 'kmeans', 'kde', 'quantile'
+        'method': 'hmm',  # Options: 'kmeans', 'kde', 'quantile', 'hmm'
         'n_regimes': 3,  # Number of distinct volatility regimes
-        'quantile_thresholds': [0.33, 0.67],  # Percentile thresholds for regime transitions
+        'quantile_thresholds': [0.33, 0.75],  # Percentile thresholds for regime transitions
         'regime_stability_period': 48,  # Hours required before confirming regime change
         'regime_opt_out': {
             0: False,  # Low volatility regime - False means trade normally in this regime
             1: False,  # Medium volatility regime - False means trade normally in this regime
-            2: False   # High volatility regime - False means trade normally in this regime
-        },
-        'regime_position_factors': {
-            0: 1.0,    # Low volatility - full position size
-            1: 0.8,    # Medium volatility - 80% position size
-            2: 0.2     # High volatility - 20% position size
+            2: True   # High volatility regime - True means liquidate positions when entering this regime
         }
     },
     
     # SMA strategy settings
     'sma': {
-        'short_windows': [5, 8, 13],  # Fibonacci-based short windows was [5, 8, 13, 21, 34]
-        'long_windows': [21, 34, 55],  # Fibonacci-based long windows was [21, 34, 55, 89, 144]
-        'min_holding_period': 12,  # Minimum holding period in hours
+        'short_windows': [5, 8, 13, 21, 34],  # Fibonacci-based short windows
+        'long_windows': [21, 34, 55, 89, 144],  # Fibonacci-based long windows
+        'min_holding_period': 24,  # Minimum holding period in hours
         'trend_filter_period': 200,  # Period for trend strength calculation
         'trend_strength_threshold': 0.3,  # Minimum trend strength to take a position
     },
     
-    # Regime-specific parameters for adaptive trading
-    'regime_specific_parameters': {
-        0: {  # Low volatility
-            'trend_strength_threshold': 0.2,  # More sensitive to trends in low vol
-            'trailing_stop_distance': 0.03,   # Wider trailing stops
-            'profit_taking_threshold': 0.07,  # Higher profit targets
-            'min_holding_period': 24         # Longer minimum holding in low vol
-        },
-        1: {  # Medium volatility - use default parameters
-            'trend_strength_threshold': 0.3,
-            'trailing_stop_distance': 0.02,
-            'profit_taking_threshold': 0.05,
-            'min_holding_period': 12
-        },
-        2: {  # High volatility
-            'trend_strength_threshold': 0.5,  # Require stronger trends to trade
-            'trailing_stop_distance': 0.015,  # Tighter trailing stops
-            'profit_taking_threshold': 0.03,  # Take profits more quickly
-            'min_holding_period': 6           # Shorter holding period in high vol
-        }
-    },
-    
-    # Risk management settings
+    # Risk management settings - balanced to avoid conflicts
     'risk_management': {
         'target_volatility': 0.15,  # Target annualized volatility
         'max_position_size': 1.0,  # Maximum position size
         'min_position_size': 0.1,  # Minimum position size
-        'max_drawdown_exit': 0.15,  # Exit if drawdown exceeds this threshold
-        'profit_taking_threshold': 0.04,  # Take profit at this threshold
-        'trailing_stop_activation': 0.02,  # Activate trailing stop after this gain
-        'trailing_stop_distance': 0.02,  # Trailing stop distance
+        'max_drawdown_exit': 0.12,  # Exit if drawdown exceeds this threshold (reduced from 0.15)
+        'profit_taking_threshold': 0.08,  # Take profit at this threshold (increased from 0.05)
+        'trailing_stop_activation': 0.06,  # Activate trailing stop after this gain (increased from 0.05)
+        'trailing_stop_distance': 0.03,  # Trailing stop distance (increased from 0.02)
         'materiality_threshold': 0.05,  # Only rebalance if position size change exceeds this percentage
-        'use_dynamic_materiality': True,  # Whether to use regime-specific materiality thresholds
-        'volatility_adjusted_risk': True,  # Whether to adjust risk parameters based on volatility
-        'volatility_risk_multiplier': {
-            0: 1.2,  # Allow larger drawdowns in low volatility
-            1: 1.0,  # Standard parameters
-            2: 0.7   # Reduce maximum drawdown in high volatility
-        }
-    },
-    
-    # Dynamic materiality threshold settings
-    'dynamic_materiality': {
-        0: 0.07,  # Low volatility - less frequent rebalancing
-        1: 0.05,  # Medium volatility - regular rebalancing
-        2: 0.03   # High volatility - more frequent rebalancing
-    },
-    
-    # Counter-trend strategy settings
-    'counter_trend': {
-        'enabled': True,  # Whether to use counter-trend strategy
-        'only_high_vol_regime': True,  # Only apply in high volatility regime
-        'rsi_period': 14,  # RSI calculation period
-        'oversold_threshold': 30,  # RSI level considered oversold
-        'overbought_threshold': 70,  # RSI level considered overbought
-        'signal_strength': 0.5,  # Strength of counter-trend signals (0.0-1.0)
     },
     
     # Cross-validation settings

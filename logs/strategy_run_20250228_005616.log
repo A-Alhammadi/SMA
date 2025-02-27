@@ -1,0 +1,132 @@
+================================================================================
+Enhanced SMA Strategy Runner
+Started at: 2025-02-28 00:56:16
+Logging to: logs\strategy_run_20250228_005616.log
+================================================================================
+
+Running enhanced SMA backtest...
+Starting enhanced SMA backtest for BTC/USD
+Connection pool initialized with 1-10 connections
+Successfully acquired connection from pool
+Fetching data from 2018-05-20 to 2024-10-20
+
+Fetching data for BTC/USD:
+Start: 2018-05-20
+End: 2024-10-20
+Fetched 56281 hourly records
+Date range: 2018-05-20 00:00:00 to 2024-10-20 00:00:00
+Optimizing parameters with time series cross-validation...
+
+CV Fold 1/5:
+  Training: 2018-05-20 to 2018-08-18
+  Validation: 2018-08-18 to 2018-09-17
+  Tested 50/99 parameter combinations
+  Tested 99/99 parameter combinations
+  Best parameters for fold 1:
+    {'vol_method': 'yang_zhang', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+  Best score: 2.7341
+  Sharpe: 4.5890, Sortino: 2.8243, Calmar: 0.1708
+  Return: 11.1890%, Max DD: -2.7343%
+
+CV Fold 2/5:
+  Training: 2018-05-20 to 2018-09-17
+  Validation: 2018-09-17 to 2018-10-17
+  Tested 50/99 parameter combinations
+  Tested 99/99 parameter combinations
+  Best parameters for fold 2:
+    {'vol_method': 'parkinson', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+  Best score: 2.1481
+  Sharpe: 3.9128, Sortino: 1.8304, Calmar: 0.1129
+  Return: 10.5401%, Max DD: -2.9544%
+
+CV Fold 3/5:
+  Training: 2018-05-20 to 2018-10-17
+  Validation: 2018-10-17 to 2018-11-16
+  Tested 50/99 parameter combinations
+  Tested 99/99 parameter combinations
+  Best parameters for fold 3:
+    {'vol_method': 'yang_zhang', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+  Best score: 1.4743
+  Sharpe: 2.4472, Sortino: 1.5647, Calmar: 0.0867
+  Return: 10.3737%, Max DD: -3.0368%
+
+CV Fold 4/5:
+  Training: 2018-05-20 to 2018-11-16
+  Validation: 2018-11-16 to 2018-12-16
+  Tested 50/99 parameter combinations
+  Tested 99/99 parameter combinations
+  Best parameters for fold 4:
+    {'vol_method': 'yang_zhang', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+  Best score: 1.4975
+  Sharpe: 2.4793, Sortino: 1.6338, Calmar: 0.0521
+  Return: 13.4044%, Max DD: -5.3754%
+
+CV Fold 5/5:
+  Training: 2018-05-20 to 2018-12-16
+  Validation: 2018-12-16 to 2019-01-15
+  Tested 50/99 parameter combinations
+  Tested 99/99 parameter combinations
+  Best parameters for fold 5:
+    {'vol_method': 'garch', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+  Best score: 2.3265
+  Sharpe: 4.0237, Sortino: 2.3076, Calmar: 0.0825
+  Return: 26.0388%, Max DD: -5.3208%
+
+Parameter stability score: 0.8375
+
+Top 5 parameter sets across all folds:
+1. {'vol_method': 'yang_zhang', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+   Avg Score: 1.9204, Folds: 5/5
+   Avg Sharpe: 3.2675, Avg Sortino: 1.9487, Avg Calmar: 0.0960
+   Avg Return: 12.6408%, Avg Max DD: -3.9117%
+   Final Score (with stability): 1.3790
+2. {'vol_method': 'parkinson', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+   Avg Score: 1.9056, Folds: 5/5
+   Avg Sharpe: 3.3187, Avg Sortino: 1.8363, Avg Calmar: 0.0908
+   Avg Return: 12.2400%, Avg Max DD: -4.0243%
+   Final Score (with stability): 1.3716
+3. {'vol_method': 'yang_zhang', 'vol_lookback': 50, 'short_window': 5, 'long_window': 21}
+   Avg Score: 1.7684, Folds: 5/5
+   Avg Sharpe: 2.9138, Avg Sortino: 1.9113, Avg Calmar: 0.0982
+   Avg Return: 12.2556%, Avg Max DD: -3.4239%
+   Final Score (with stability): 1.3029
+4. {'vol_method': 'parkinson', 'vol_lookback': 100, 'short_window': 8, 'long_window': 21}
+   Avg Score: 1.7644, Folds: 5/5
+   Avg Sharpe: 2.8667, Avg Sortino: 1.9757, Avg Calmar: 0.0833
+   Avg Return: 12.6695%, Avg Max DD: -5.1518%
+   Final Score (with stability): 1.3009
+5. {'vol_method': 'parkinson', 'vol_lookback': 50, 'short_window': 5, 'long_window': 21}
+   Avg Score: 1.7284, Folds: 5/5
+   Avg Sharpe: 2.9202, Avg Sortino: 1.7791, Avg Calmar: 0.0888
+   Avg Return: 11.7347%, Avg Max DD: -3.5946%
+   Final Score (with stability): 1.2830
+
+Selected best parameters: {'vol_method': 'yang_zhang', 'vol_lookback': 50, 'short_window': 8, 'long_window': 21}
+Applying enhanced SMA strategy with adaptive regime-based parameters...
+
+Regime Distribution:
+Regime 1: 16608 periods (49.85%)
+Regime 2: 8826 periods (26.49%)
+Regime 0: 7879 periods (23.65%)
+Error in backtest: single positional indexer is out-of-bounds
+Traceback (most recent call last):
+  File "C:\Users\haman\Dropbox\My PC (LAPTOP-QV7RR5UL)\Desktop\Sma\enhanced_sma.py", line 2086, in run_enhanced_backtest
+    result_df = apply_enhanced_sma_strategy(test_df, best_params, STRATEGY_CONFIG)
+  File "C:\Users\haman\Dropbox\My PC (LAPTOP-QV7RR5UL)\Desktop\Sma\enhanced_sma.py", line 1846, in apply_enhanced_sma_strategy
+    if rsi.iloc[i] < oversold:
+       ~~~~~~~~^^^
+  File "C:\Users\haman\AppData\Local\Programs\Python\Python313\Lib\site-packages\pandas\core\indexing.py", line 1191, in __getitem__
+    return self._getitem_axis(maybe_callable, axis=axis)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\haman\AppData\Local\Programs\Python\Python313\Lib\site-packages\pandas\core\indexing.py", line 1752, in _getitem_axis
+    self._validate_integer(key, axis)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\haman\AppData\Local\Programs\Python\Python313\Lib\site-packages\pandas\core\indexing.py", line 1685, in _validate_integer
+    raise IndexError("single positional indexer is out-of-bounds")
+IndexError: single positional indexer is out-of-bounds
+
+Execution complete!
+Total runtime: 5.66 minutes
+
+Log file saved to: logs\strategy_run_20250228_005616.log
+================================================================================

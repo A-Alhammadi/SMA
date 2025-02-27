@@ -38,4 +38,4 @@ except ImportError:
     TRADING_FEE_PCT = 0.001
     RESULTS_DIR = "enhanced_sma_results"
     SAVE_RESULTS = True
-    PLOT_RESULTS = True
+    PLOT_RESULTS = True  

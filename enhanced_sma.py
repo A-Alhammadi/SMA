@@ -2,6 +2,7 @@
 
 import pandas as pd
 import numpy as np
+from hmmlearn import hmm
 import matplotlib.pyplot as plt
 import time
 import os
@@ -339,7 +340,89 @@ def calculate_volatility(df, method='parkinson', window=20):
         return calculate_standard_volatility(df, window)
 
 # ==================== ADVANCED REGIME DETECTION ====================
-
+def detect_regimes_hmm(volatility_series, n_regimes=3, smoothing_period=5):
+    """
+    Detect volatility regimes using Hidden Markov Models.
+    
+    Parameters:
+        volatility_series (Series): Volatility time series
+        n_regimes (int): Number of regimes to identify
+        smoothing_period (int): Period for smoothing regime transitions
+        
+    Returns:
+        Series: Regime classifications (0 to n_regimes-1)
+    """
+    # Prepare data for HMM
+    # Use log volatility to better capture distribution characteristics
+    log_vol = np.log(volatility_series.replace(0, np.nan).fillna(volatility_series.min()))
+    X = log_vol.values.reshape(-1, 1)
+    
+    # Initialize HMM model
+    model = hmm.GaussianHMM(
+        n_components=n_regimes, 
+        covariance_type="full", 
+        n_iter=100,
+        tol=0.01,
+        random_state=42
+    )
+    
+    # Fit model
+    try:
+        model.fit(X)
+        
+        # Predict hidden states
+        hidden_states = model.predict(X)
+        
+        # Map states by volatility level (0=low, n_regimes-1=high)
+        # Calculate average volatility for each state
+        state_vol_means = {}
+        for state in range(n_regimes):
+            if np.any(hidden_states == state):
+                state_vol_means[state] = np.mean(volatility_series[hidden_states == state])
+        
+        # Sort states by mean volatility
+        sorted_states = sorted(state_vol_means.items(), key=lambda x: x[1])
+        state_mapping = {old_state: new_state for new_state, (old_state, _) in enumerate(sorted_states)}
+        
+        # Apply mapping to reorder states from low to high volatility
+        mapped_states = np.array([state_mapping.get(state, state) for state in hidden_states])
+        
+        # Create Series with regime labels
+        regimes = pd.Series(mapped_states, index=volatility_series.index)
+        
+        # Apply smoothing to prevent frequent regime transitions
+        if smoothing_period > 1:
+            regimes = regimes.rolling(window=smoothing_period, center=True).median().fillna(method='ffill').fillna(method='bfill')
+            regimes = regimes.round().astype(int)
+        
+        return regimes
+        
+    except Exception as e:
+        print(f"HMM estimation failed: {e}")
+        print("Falling back to K-means for regime detection")
+        # Fall back to K-means
+        from sklearn.cluster import KMeans
+        kmeans = KMeans(n_clusters=n_regimes, random_state=42, n_init=10)
+        labels = kmeans.fit_predict(X)
+        
+        # Sort regimes by volatility level
+        cluster_centers = kmeans.cluster_centers_.flatten()
+        sorting_indices = np.argsort(cluster_centers)
+        
+        # Map original labels to sorted labels
+        regime_map = {sorting_indices[i]: i for i in range(n_regimes)}
+        sorted_labels = np.array([regime_map[label] for label in labels])
+        
+        # Create Series with regime labels
+        regimes = pd.Series(sorted_labels, index=volatility_series.index)
+        
+        # Apply smoothing
+        if smoothing_period > 1:
+            regimes = regimes.rolling(window=smoothing_period, center=True).median().fillna(method='ffill').fillna(method='bfill')
+            regimes = regimes.round().astype(int)
+        
+        return regimes
+    
 def detect_regimes_kmeans(volatility_series, n_regimes=3, smoothing_period=5):
     """
     Detect volatility regimes using K-means clustering.
@@ -482,8 +565,8 @@ def detect_volatility_regimes(df, volatility, method='kmeans', n_regimes=3,
     Parameters:
         df (DataFrame): DataFrame with price data
         volatility (Series): Volatility series
-        method (str): Method for regime detection
-        n_regimes (int): Number of regimes to identify (for kmeans/kde)
+        method (str): Method for regime detection ('kmeans', 'kde', 'quantile', or 'hmm')
+        n_regimes (int): Number of regimes to identify (for kmeans/kde/hmm)
         quantile_thresholds (list): Quantile thresholds (for quantile method)
         smoothing_period (int): Period for smoothing regime transitions
         stability_period (int): Hours required before confirming regime change
@@ -496,6 +579,8 @@ def detect_volatility_regimes(df, volatility, method='kmeans', n_regimes=3,
         regimes = detect_regimes_kmeans(volatility, n_regimes, smoothing_period)
     elif method == 'kde':
         regimes = detect_regimes_kde(volatility, n_regimes, smoothing_period)
+    elif method == 'hmm':
+        regimes = detect_regimes_hmm(volatility, n_regimes, smoothing_period)
     else:  # Default to quantile method
         regimes = detect_regimes_quantile(volatility, quantile_thresholds, smoothing_period)
     
@@ -792,6 +877,150 @@ def apply_profit_taking(position, trade_returns, profit_threshold=0.05):
     
     return modified_position
 
+def apply_unified_risk_management(df, position, returns, volatility, regimes, config):
+    """
+    Apply a unified risk management approach that prioritizes exit conditions.
+    
+    Priority order:
+    1. Maximum drawdown stop loss (prevent catastrophic losses)
+    2. Profit taking (secure profits at target)
+    3. Trailing stop (protect profits while allowing upside)
+    
+    Parameters:
+        df (DataFrame): DataFrame with price data
+        position (Series): Position series (-1, 0, 1)
+        returns (Series): Returns series
+        volatility (Series): Volatility series
+        regimes (Series): Regime classifications
+        config (dict): Risk management configuration
+        
+    Returns:
+        Series: Position with risk management applied
+        dict: Statistics about which exit conditions were triggered
+    """
+    # Create copy of position for modification
+    managed_position = position.copy()
+    
+    # Track trade stats
+    trade_stats = {
+        'max_drawdown_exits': 0,
+        'profit_taking_exits': 0,
+        'trailing_stop_exits': 0,
+        'total_trades': 0
+    }
+    
+    # Track trade information
+    in_position = False
+    entry_price = None
+    entry_time = None
+    highest_price = None
+    lowest_price = None
+    trade_return = 0.0
+    trailing_stop_activated = False
+    
+    # Set regime-specific risk parameters
+    regime_risk_params = {
+        0: {  # Low volatility regime - more conservative profit taking
+            'profit_mult': 0.8,  # 80% of standard profit taking
+            'trailing_mult': 1.2  # 120% of standard trailing stop distance
+        },
+        1: {  # Medium volatility regime - standard parameters
+            'profit_mult': 1.0,
+            'trailing_mult': 1.0
+        },
+        2: {  # High volatility regime - tighter risk management
+            'profit_mult': 1.2,  # 120% of standard profit taking (higher target)
+            'trailing_mult': 0.8  # 80% of standard trailing stop distance (tighter)
+        }
+    }
+    
+    # Process each bar
+    for i in range(1, len(position)):
+        current_price = df['close_price'].iloc[i]
+        current_regime = regimes.iloc[i]
+        
+        # Skip if no position
+        if position.iloc[i] == 0:
+            in_position = False
+            continue
+        
+        # Get regime-specific parameters
+        regime_params = regime_risk_params.get(current_regime, regime_risk_params[1])
+        
+        # New position initiation
+        if not in_position or position.iloc[i] != position.iloc[i-1]:
+            in_position = True
+            entry_price = current_price
+            entry_time = df.index[i]
+            highest_price = current_price
+            lowest_price = current_price
+            trade_return = 0.0
+            trailing_stop_activated = False
+            trade_stats['total_trades'] += 1
+            continue
+        
+        # Update highest/lowest price if in a position
+        highest_price = max(highest_price, current_price)
+        lowest_price = min(lowest_price, current_price)
+        
+        # Calculate trade return based on position direction
+        if position.iloc[i] > 0:  # Long position
+            price_change = (current_price / entry_price) - 1
+        else:  # Short position
+            price_change = 1 - (current_price / entry_price)
+        
+        # Update trade return
+        trade_return = price_change * abs(position.iloc[i])  # Adjust for position size
+        
+        # 1. Check maximum drawdown - highest priority
+        drawdown_from_peak = 0
+        if position.iloc[i] > 0:  # Long position
+            drawdown_from_peak = (highest_price - current_price) / highest_price
+        else:  # Short position
+            drawdown_from_peak = (current_price - lowest_price) / lowest_price if lowest_price > 0 else 0
+        
+        max_drawdown_threshold = config['max_drawdown_exit']
+        if drawdown_from_peak > max_drawdown_threshold:
+            managed_position.iloc[i] = 0
+            trade_stats['max_drawdown_exits'] += 1
+            in_position = False
+            continue
+        
+        # 2. Check profit taking threshold
+        profit_threshold = config['profit_taking_threshold'] * regime_params['profit_mult']
+        if trade_return > profit_threshold:
+            managed_position.iloc[i] = 0
+            trade_stats['profit_taking_exits'] += 1
+            in_position = False
+            continue
+        
+        # 3. Check trailing stop
+        trailing_activation = config['trailing_stop_activation']
+        if trade_return > trailing_activation and not trailing_stop_activated:
+            trailing_stop_activated = True
+        
+        if trailing_stop_activated:
+            # Calculate dynamic trailing stop distance based on volatility and regime
+            base_distance = config['trailing_stop_distance']
+            vol_factor = min(2.0, max(0.5, volatility.iloc[i] / volatility.mean()))
+            regime_factor = regime_params['trailing_mult']
+            dynamic_distance = base_distance * vol_factor * regime_factor
+            
+            # Calculate price levels for trailing stop
+            if position.iloc[i] > 0:  # Long position
+                stop_level = highest_price * (1 - dynamic_distance)
+                if current_price < stop_level:
+                    managed_position.iloc[i] = 0
+                    trade_stats['trailing_stop_exits'] += 1
+                    in_position = False
+            else:  # Short position
+                stop_level = lowest_price * (1 + dynamic_distance)
+                if current_price > stop_level:
+                    managed_position.iloc[i] = 0
+                    trade_stats['trailing_stop_exits'] += 1
+                    in_position = False
+    
+    return managed_position, trade_stats
 # ==================== ADVANCED BACKTEST & PERFORMANCE ====================
 
 def calculate_sharpe_ratio(returns, risk_free_rate=0.0, annualization_factor=None):
@@ -1411,13 +1640,11 @@ def calculate_adaptive_position_size_with_schedule(volatility, regime, timestamp
                                                   target_vol=0.15, max_size=1.0, min_size=0.1,
                                                   rebalance_frequency="daily", 
                                                   materiality_threshold=0.05,
-                                                  regime_opt_out=None,
-                                                  regime_position_factors=None,
-                                                  use_dynamic_materiality=False,
-                                                  dynamic_materiality=None):
+                                                  regime_opt_out=None):
     """
     Scale position size inversely with volatility using a scheduled rebalancing approach.
-    Position sizing is regime-aware and can use different factors for different regimes.
+    Position sizing is regime-aware and can opt out of trading in specified regimes.
+    Added debugging info for troubleshooting zero trades issue.
     
     Parameters:
         volatility (Series): Volatility series
@@ -1429,186 +1656,90 @@ def calculate_adaptive_position_size_with_schedule(volatility, regime, timestamp
         rebalance_frequency (str): How often to rebalance - "daily", "weekly", or "hourly"
         materiality_threshold (float): Only rebalance if position size change exceeds this percentage
         regime_opt_out (dict): Dictionary specifying which regimes to opt out from trading (True = opt out)
-        regime_position_factors (dict): Dictionary specifying position size factors for each regime
-        use_dynamic_materiality (bool): Whether to use regime-specific materiality thresholds
-        dynamic_materiality (dict): Dictionary with regime-specific materiality thresholds
         
     Returns:
         Series: Position size scaling factor
     """
+    # Print debugging info
+    print("\nPOSITION SIZING DEBUG:")
+    print(f"Target volatility: {target_vol}")
+    print(f"Min size: {min_size}, Max size: {max_size}")
+    print(f"Materiality threshold: {materiality_threshold}")
+    
     # Avoid division by zero
     safe_volatility = volatility.replace(0, volatility.median())
     
     # Calculate base position scale based on volatility
     position_scale = target_vol / safe_volatility
     
-    # Create regime adjustment factors using config values if provided
-    if regime_position_factors is not None:
-        regime_factors = pd.Series(1.0, index=regime.index)
-        for r, factor in regime_position_factors.items():
-            regime_factors[regime == r] = factor
-    else:
-        # Default regime factors if not provided
-        regime_factors = pd.Series(1.0, index=regime.index)
-        regime_factors[regime == 1] = 0.8  # Medium volatility: 80% position size
-        regime_factors[regime == 2] = 0.2  # High volatility: 20% position size
+    # Create regime adjustment factors - reduce position in higher volatility regimes
+    # but don't completely eliminate trading unless specified in regime_opt_out
+    regime_factors = pd.Series(1.0, index=regime.index)
+    regime_factors[regime == 1] = 0.8  # Normal volatility: 80% normal position size
+    regime_factors[regime == 2] = 0.5  # High volatility: 50% normal position size
+    
+    # Debug regime factors
+    print("\nREGIME ADJUSTMENT FACTORS:")
+    for r in range(3):  # Assuming 3 regimes
+        regime_count = (regime == r).sum()
+        if regime_count > 0:
+            avg_factor = regime_factors[regime == r].mean()
+            print(f"Regime {r}: Average factor = {avg_factor:.2f}")
     
     # Apply opt-out for specific regimes if specified
     if regime_opt_out is not None:
+        # Debug before opt-out
+        zero_before = (position_scale == 0).sum()
+        print(f"\nZero positions before opt-out: {zero_before}")
+        
         for r, opt_out in regime_opt_out.items():
             if opt_out:
                 # Set position size to 0 for opted-out regimes
                 regime_factors[regime == r] = 0.0
+                regime_count = (regime == r).sum()
+                print(f"Applied opt-out for regime {r}: {regime_count} periods affected")
     
     # Apply regime adjustment
     position_scale = position_scale * regime_factors
     
+    # Debug after regime adjustment
+    zero_after_regime = (position_scale == 0).sum()
+    print(f"Zero positions after regime adjustment: {zero_after_regime}")
+    
     # Apply limits
     position_scale = position_scale.clip(lower=min_size, upper=max_size)
+    
+    # Debug after clipping
+    zero_after_clip = (position_scale == 0).sum()
+    print(f"Zero positions after clipping: {zero_after_clip}")
     
     # Set position size to 0 for opted-out regimes (need to do this after clipping)
     if regime_opt_out is not None:
         for r, opt_out in regime_opt_out.items():
             if opt_out:
                 position_scale[regime == r] = 0.0
-    
-    # Determine materiality threshold for each timestamp based on regime
-    if use_dynamic_materiality and dynamic_materiality is not None:
-        materiality_thresholds = pd.Series(materiality_threshold, index=regime.index)
-        for r, threshold in dynamic_materiality.items():
-            materiality_thresholds[regime == r] = threshold
-    else:
-        # Use the same threshold for all regimes
-        materiality_thresholds = pd.Series(materiality_threshold, index=regime.index)
+        
+        # Debug after final opt-out
+        zero_final = (position_scale == 0).sum()
+        print(f"Zero positions after final opt-out: {zero_final}")
     
     # Apply scheduled rebalancing to reduce trading frequency
-    rebalanced_scale = apply_regime_aware_rebalancing(
-        position_scale, 
-        regime,
-        timestamp, 
-        rebalance_frequency, 
-        materiality_thresholds
-    )
+    rebalanced_scale = apply_rebalancing_schedule(position_scale, timestamp, 
+                                                 rebalance_frequency, 
+                                                 materiality_threshold)
+    
+    # Debug rebalancing effect
+    zero_after_rebalance = (rebalanced_scale == 0).sum()
+    print(f"Zero positions after rebalancing: {zero_after_rebalance}")
+    
+    # Final position size stats
+    print(f"\nFinal position sizing stats:")
+    print(f"Min: {rebalanced_scale.min()}")
+    print(f"Max: {rebalanced_scale.max()}")
+    print(f"Mean: {rebalanced_scale.mean():.4f}")
+    print(f"Zero positions: {(rebalanced_scale == 0).sum()} out of {len(rebalanced_scale)}")
     
     return rebalanced_scale
-
-def apply_regime_aware_rebalancing(position_scale, regime, timestamp, frequency="daily", materiality_thresholds=None):
-    """
-    Apply a rebalancing schedule to position sizes with awareness of regime changes.
-    
-    Parameters:
-        position_scale (Series): Original position scale series
-        regime (Series): Regime classifications
-        timestamp (DatetimeIndex): Timestamps for the series
-        frequency (str): Rebalancing frequency - "daily", "weekly", or "hourly"
-        materiality_thresholds (Series): Regime-specific materiality thresholds
-        
-    Returns:
-        Series: Rebalanced position scale series
-    """
-    # Create a copy to avoid modifying the original
-    rebalanced_scale = position_scale.copy()
-    
-    # Initialize with the first position
-    current_position = position_scale.iloc[0]
-    last_rebalance_time = None
-    current_regime = regime.iloc[0]
-    
-    # Go through each timestamp
-    for i, (ts, new_position) in enumerate(zip(timestamp, position_scale)):
-        # Skip the first position as it's already set
-        if i == 0:
-            last_rebalance_time = ts
-            continue
-        
-        # Get the current regime at this timestamp
-        new_regime = regime.iloc[i]
-        
-        # Regime change always triggers rebalancing
-        regime_change = new_regime != current_regime
-        
-        # Determine if it's time to rebalance
-        rebalance_time = False
-        
-        if frequency == "daily":
-            # Rebalance at the beginning of each day
-            if ts.date() != last_rebalance_time.date():
-                rebalance_time = True
-        elif frequency == "weekly":
-            # Rebalance at the beginning of each week
-            if ts.isocalendar()[1] != last_rebalance_time.isocalendar()[1]:
-                rebalance_time = True
-        elif frequency == "hourly":
-            # Rebalance every N hours
-            rebalance_hours = 4  # Adjust as needed
-            hour_diff = (ts - last_rebalance_time).total_seconds() / 3600
-            if hour_diff >= rebalance_hours:
-                rebalance_time = True
-        
-        # Get the appropriate materiality threshold for this timestamp
-        if materiality_thresholds is not None:
-            threshold = materiality_thresholds.iloc[i]
-        else:
-            threshold = 0.05  # Default
-        
-        # Special case: if BOTH current and new positions are zero, don't consider it a change
-        if current_position == 0 and new_position == 0:
-            material_change = False
-        # Special case: if going from zero to non-zero, always rebalance
-        elif current_position == 0 and new_position != 0:
-            material_change = True
-        # Special case: if going from non-zero to zero, always rebalance
-        elif current_position != 0 and new_position == 0:
-            material_change = True
-        # Normal case: calculate percentage change
-        else:
-            position_change_pct = abs(new_position - current_position) / current_position
-            material_change = position_change_pct > threshold
-        
-        # Rebalance if it's time and the change is material, or if regime changed
-        if (rebalance_time and material_change) or regime_change:
-            current_position = new_position
-            last_rebalance_time = ts
-            current_regime = new_regime
-        else:
-            # Keep the previous position
-            rebalanced_scale.iloc[i] = current_position
-    
-    return rebalanced_scale
-
-def calculate_rsi(prices, window=14):
-    """
-    Calculate the Relative Strength Index (RSI).
-    
-    Parameters:
-        prices (Series): Price series
-        window (int): RSI calculation period
-        
-    Returns:
-        Series: RSI values
-    """
-    # Calculate price changes
-    delta = prices.diff().dropna()
-    
-    # Separate gains and losses
-    gains = delta.copy()
-    losses = delta.copy()
-    
-    gains[gains < 0] = 0
-    losses[losses > 0] = 0
-    losses = abs(losses)
-    
-    # Calculate average gains and losses
-    avg_gain = gains.rolling(window=window).mean()
-    avg_loss = losses.rolling(window=window).mean()
-    
-    # Calculate RS (Relative Strength)
-    rs = avg_gain / avg_loss
-    
-    # Calculate RSI
-    rsi = 100 - (100 / (1 + rs))
-    
-    return rsi
 
 def apply_rebalancing_schedule(position_scale, timestamp, frequency="daily", materiality_threshold=0.05):
     """
@@ -1682,8 +1813,7 @@ def apply_rebalancing_schedule(position_scale, timestamp, frequency="daily", mat
 def apply_enhanced_sma_strategy(df, params, config):
     """
     Apply enhanced SMA strategy with optimized parameters and advanced features.
-    Features regime-specific parameters, counter-trend signals for high volatility,
-    and dynamic risk management.
+    Now using unified risk management and HMM for regime detection.
     
     Parameters:
         df (DataFrame): DataFrame with price data
@@ -1693,7 +1823,7 @@ def apply_enhanced_sma_strategy(df, params, config):
     Returns:
         DataFrame: Results DataFrame
     """
-    print("Applying enhanced SMA strategy with adaptive regime-based parameters...")
+    print("Applying enhanced SMA strategy with HMM regime detection and unified risk management...")
     
     # Extract parameters
     vol_method = params['vol_method']
@@ -1713,10 +1843,10 @@ def apply_enhanced_sma_strategy(df, params, config):
         stability_period=config['regime_detection']['regime_stability_period']
     )
     
-    # Print regime distribution
+    # Print regime distribution for debugging
     regime_counts = regimes.value_counts()
     total_periods = len(df)
-    print("\nRegime Distribution:")
+    print("\nREGIME DISTRIBUTION (DEBUGGING):")
     for regime, count in regime_counts.items():
         percentage = (count / total_periods) * 100
         print(f"Regime {regime}: {count} periods ({percentage:.2f}%)")
@@ -1765,131 +1895,49 @@ def apply_enhanced_sma_strategy(df, params, config):
     raw_signal[short_ma > long_ma] = 1
     raw_signal[short_ma < long_ma] = -1
     
-    # Initialize series to store regime-specific parameters
-    trend_threshold = pd.Series(config['sma']['trend_strength_threshold'], index=df.index)
-    min_holding = pd.Series(config['sma']['min_holding_period'], index=df.index)
-    profit_threshold = pd.Series(config['risk_management']['profit_taking_threshold'], index=df.index)
-    trailing_stop = pd.Series(config['risk_management']['trailing_stop_distance'], index=df.index)
+    # Print raw signal stats for debugging
+    signal_counts = raw_signal.value_counts()
+    print("\nRAW SIGNAL DISTRIBUTION (DEBUGGING):")
+    for signal, count in signal_counts.items():
+        percentage = (count / total_periods) * 100
+        print(f"Signal {signal}: {count} periods ({percentage:.2f}%)")
     
-    # Apply regime-specific parameters if configured
-    if 'regime_specific_parameters' in config:
-        for regime_id, params in config['regime_specific_parameters'].items():
-            # Apply trend strength threshold
-            if 'trend_strength_threshold' in params:
-                trend_threshold[regimes == regime_id] = params['trend_strength_threshold']
-            
-            # Apply min holding period
-            if 'min_holding_period' in params:
-                min_holding[regimes == regime_id] = params['min_holding_period']
-            
-            # Apply profit taking threshold
-            if 'profit_taking_threshold' in params:
-                profit_threshold[regimes == regime_id] = params['profit_taking_threshold']
-            
-            # Apply trailing stop distance
-            if 'trailing_stop_distance' in params:
-                trailing_stop[regimes == regime_id] = params['trailing_stop_distance']
+    # Filter signals
+    filtered_signal = filter_signals(
+        raw_signal, 
+        trend_strength, 
+        momentum,
+        min_trend_strength=config['sma']['trend_strength_threshold']
+    )
     
-    # Apply volatility-adjusted risk if configured
-    if config['risk_management'].get('volatility_adjusted_risk', False):
-        multipliers = config['risk_management']['volatility_risk_multiplier']
-        
-        # Adjust the max drawdown exit based on regime
-        max_dd_exit = pd.Series(config['risk_management']['max_drawdown_exit'], index=df.index)
-        for regime_id, multiplier in multipliers.items():
-            max_dd_exit[regimes == regime_id] = config['risk_management']['max_drawdown_exit'] * multiplier
-    else:
-        # Use constant max drawdown
-        max_dd_exit = pd.Series(config['risk_management']['max_drawdown_exit'], index=df.index)
+    # Print filtered signal stats for debugging
+    filtered_counts = filtered_signal.value_counts()
+    print("\nFILTERED SIGNAL DISTRIBUTION (DEBUGGING):")
+    for signal, count in filtered_counts.items():
+        percentage = (count / total_periods) * 100
+        print(f"Signal {signal}: {count} periods ({percentage:.2f}%)")
     
-    # Filter signals using regime-specific trend thresholds
-    filtered_signal = pd.Series(0, index=df.index)
+    # Apply minimum holding period
+    position = apply_min_holding_period(
+        filtered_signal,
+        min_holding_hours=config['sma']['min_holding_period']
+    )
     
-    for i in range(len(df)):
-        current_regime = regimes.iloc[i]
-        current_threshold = trend_threshold.iloc[i]
-        
-        # Apply regime-specific filters
-        if current_regime == 2:  # High volatility regime - more selective
-            # Only take long positions in strong uptrends, short positions in strong downtrends
-            if raw_signal.iloc[i] > 0 and trend_strength.iloc[i] > current_threshold and momentum.iloc[i] > 0:
-                filtered_signal.iloc[i] = 1
-            elif raw_signal.iloc[i] < 0 and trend_strength.iloc[i] < -current_threshold and momentum.iloc[i] < 0:
-                filtered_signal.iloc[i] = -1
-        else:  # Low and medium volatility regimes - normal filtering
-            if raw_signal.iloc[i] > 0 and trend_strength.iloc[i] > current_threshold:
-                filtered_signal.iloc[i] = 1
-            elif raw_signal.iloc[i] < 0 and trend_strength.iloc[i] < -current_threshold:
-                filtered_signal.iloc[i] = -1
-    
-    # Add counter-trend signals if enabled
-    if config.get('counter_trend', {}).get('enabled', False):
-        # Calculate RSI
-        rsi_period = config['counter_trend'].get('rsi_period', 14)
-        rsi = calculate_rsi(df['close_price'], window=rsi_period)
-        
-        # Initialize counter-trend signal
-        counter_trend_signal = pd.Series(0, index=df.index)
-        
-        # Get counter-trend parameters
-        oversold = config['counter_trend'].get('oversold_threshold', 30)
-        overbought = config['counter_trend'].get('overbought_threshold', 70)
-        signal_strength = config['counter_trend'].get('signal_strength', 0.5)
-        only_high_vol = config['counter_trend'].get('only_high_vol_regime', True)
-        
-        # Generate counter-trend signals
-        for i in range(len(df)):
-            if only_high_vol and regimes.iloc[i] != 2:
-                # Skip if not in high volatility regime and only_high_vol is True
-                continue
-                
-            if rsi.iloc[i] < oversold:
-                # Oversold - add long signal
-                counter_trend_signal.iloc[i] = signal_strength
-            elif rsi.iloc[i] > overbought:
-                # Overbought - add short signal
-                counter_trend_signal.iloc[i] = -signal_strength
-        
-        # Blend with existing signal
-        blended_signal = filtered_signal + counter_trend_signal
-        # Normalize signal to keep within -1 to 1 range
-        filtered_signal = blended_signal.clip(-1, 1)
-    
-    # Apply minimum holding period with regime-specific values
-    position = pd.Series(0, index=df.index)
-    in_position = 0
-    position_start = 0
-    
-    for i in range(len(df)):
-        # New potential position
-        if filtered_signal.iloc[i] != 0 and filtered_signal.iloc[i] != in_position:
-            # Check if minimum holding period has passed
-            if in_position != 0:
-                current_min_holding = min_holding.iloc[position_start]
-                if i - position_start < current_min_holding:
-                    # Minimum holding period not met, maintain current position
-                    position.iloc[i] = in_position
-                    continue
-            
-            # Update position
-            in_position = filtered_signal.iloc[i]
-            position_start = i
-        
-        # Maintain current position
-        position.iloc[i] = in_position
-    
-    # Get regime position factors
-    regime_position_factors = config['regime_detection'].get('regime_position_factors', None)
+    # Get materiality threshold from config
+    materiality_threshold = config['risk_management'].get('materiality_threshold', 0.05)
     
     # Get regime opt-out settings
     regime_opt_out = config['regime_detection'].get('regime_opt_out', None)
     
-    # Get materiality threshold and dynamic settings
-    materiality_threshold = config['risk_management'].get('materiality_threshold', 0.05)
-    use_dynamic_materiality = config['risk_management'].get('use_dynamic_materiality', False)
-    dynamic_materiality = config.get('dynamic_materiality', None)
+    # Print opt-out settings for debugging
+    print("\nREGIME OPT-OUT SETTINGS (DEBUGGING):")
+    if regime_opt_out:
+        for regime, opt_out in regime_opt_out.items():
+            print(f"Regime {regime}: {'Opt-out' if opt_out else 'Trading enabled'}")
+    else:
+        print("No regime opt-out settings found - trading enabled in all regimes")
     
-    # Calculate position size based on volatility with advanced features
+    # Calculate position size based on volatility with reduced trading frequency
     position_size = calculate_adaptive_position_size_with_schedule(
         volatility,
         regimes,
@@ -1897,16 +1945,35 @@ def apply_enhanced_sma_strategy(df, params, config):
         target_vol=config['risk_management']['target_volatility'],
         max_size=config['risk_management']['max_position_size'],
         min_size=config['risk_management']['min_position_size'],
-        rebalance_frequency="daily",  # Rebalance daily
+        rebalance_frequency="daily",  # Rebalance daily instead of continuously
         materiality_threshold=materiality_threshold,
-        regime_opt_out=regime_opt_out,
-        regime_position_factors=regime_position_factors,
-        use_dynamic_materiality=use_dynamic_materiality,
-        dynamic_materiality=dynamic_materiality
+        regime_opt_out=regime_opt_out
     )
+    
+    # Check position sizes for debugging
+    print("\nPOSITION SIZE STATS (DEBUGGING):")
+    zero_count = (position_size == 0).sum()
+    zero_percentage = (zero_count / total_periods) * 100
+    print(f"Zero position size: {zero_count} periods ({zero_percentage:.2f}%)")
+    print(f"Min position size: {position_size.min()}")
+    print(f"Max position size: {position_size.max()}")
+    print(f"Mean position size: {position_size.mean()}")
     
     # Apply position sizing
     sized_position = position * position_size
+    
+    # Check positions after sizing for debugging
+    sized_counts = sized_position.value_counts()
+    print("\nSIZED POSITION DISTRIBUTION (DEBUGGING):")
+    zero_sized = (sized_position == 0).sum()
+    print(f"Zero positions: {zero_sized} periods ({(zero_sized / total_periods) * 100:.2f}%)")
+    non_zero = sized_position[sized_position != 0]
+    if len(non_zero) > 0:
+        print(f"Non-zero positions: {len(non_zero)} periods")
+        print(f"Positive positions: {(sized_position > 0).sum()} periods")
+        print(f"Negative positions: {(sized_position < 0).sum()} periods")
+    else:
+        print("WARNING: No non-zero positions at all!")
     
     # Calculate returns
     returns = df['close_price'].pct_change().fillna(0)
@@ -1925,64 +1992,15 @@ def apply_enhanced_sma_strategy(df, params, config):
             # No position
             trade_returns.iloc[i] = 0
     
-    # Apply risk management with dynamic parameters
-    managed_position = sized_position.copy()
-    
-    # Initialize for tracking running values
-    current_position = 0
-    running_return = 0
-    highest_return = 0
-    position_start_idx = None
-    
-    for i in range(1, len(managed_position)):
-        current_regime = regimes.iloc[i]
-        
-        # Current position settings
-        current_profit_threshold = profit_threshold.iloc[i]
-        current_trailing_stop = trailing_stop.iloc[i]
-        current_max_dd = max_dd_exit.iloc[i]
-        
-        # Position change detection
-        if managed_position.iloc[i] != 0 and managed_position.iloc[i] != current_position:
-            # New position
-            current_position = managed_position.iloc[i]
-            running_return = 0
-            highest_return = 0
-            position_start_idx = i
-        elif managed_position.iloc[i] != 0 and managed_position.iloc[i] == current_position:
-            # Continuing position - update running return
-            running_return = (1 + running_return) * (1 + returns.iloc[i] * current_position) - 1
-            
-            # Update highest return
-            if running_return > highest_return:
-                highest_return = running_return
-            
-            # Apply profit taking
-            if running_return >= current_profit_threshold:
-                managed_position.iloc[i] = 0
-                current_position = 0
-                continue
-                
-            # Apply maximum drawdown stop loss
-            current_drawdown = (running_return - highest_return)
-            if current_drawdown <= -current_max_dd:
-                managed_position.iloc[i] = 0
-                current_position = 0
-                continue
-                
-            # Apply trailing stop if activated
-            trailing_activation = config['risk_management']['trailing_stop_activation']
-            if highest_return >= trailing_activation:
-                if current_drawdown <= -current_trailing_stop:
-                    managed_position.iloc[i] = 0
-                    current_position = 0
-                    continue
-        elif managed_position.iloc[i] == 0 and current_position != 0:
-            # Position closed
-            current_position = 0
-            running_return = 0
-            highest_return = 0
-            position_start_idx = None
+    # Apply unified risk management instead of separate functions
+    managed_position, exit_stats = apply_unified_risk_management(
+        df,
+        sized_position,
+        returns,
+        volatility,
+        regimes,
+        config['risk_management']
+    )
     
     # Calculate position changes (when a trade occurs)
     position_changes = managed_position.diff().fillna(0).abs()
@@ -2022,22 +2040,24 @@ def apply_enhanced_sma_strategy(df, params, config):
         'trade_returns': trade_returns
     })
     
-    # Add regime-specific parameters for analysis
-    result_df['trend_threshold'] = trend_threshold
-    result_df['profit_threshold'] = profit_threshold
-    result_df['trailing_stop'] = trailing_stop
-    result_df['max_drawdown_threshold'] = max_dd_exit
-    
-    # If counter-trend is enabled, add RSI for analysis
-    if config.get('counter_trend', {}).get('enabled', False):
-        result_df['rsi'] = rsi
+    # Add exit statistics to result_df for analysis
+    result_df['max_drawdown_exits'] = exit_stats['max_drawdown_exits']
+    result_df['profit_taking_exits'] = exit_stats['profit_taking_exits']
+    result_df['trailing_stop_exits'] = exit_stats['trailing_stop_exits']
     
     # Add regime-specific MA data for analysis
     for regime_id in regime_windows.keys():
         result_df[f'short_ma_regime_{regime_id}'] = short_ma_regime[regime_id]
         result_df[f'long_ma_regime_{regime_id}'] = long_ma_regime[regime_id]
     
-    print(f"Strategy applied with {num_trades} trades")
+    # Print summary of exit types
+    print(f"\nRisk Management Exit Summary:")
+    print(f"Max Drawdown Exits: {exit_stats['max_drawdown_exits']}")
+    print(f"Profit Taking Exits: {exit_stats['profit_taking_exits']}")
+    print(f"Trailing Stop Exits: {exit_stats['trailing_stop_exits']}")
+    print(f"Total Trades: {exit_stats['total_trades']}")
+    
+    print(f"\nStrategy applied with {num_trades} trades")
     
     return result_df
 
@@ -2130,7 +2150,7 @@ def run_enhanced_backtest():
 
 def plot_enhanced_results(df, params, metrics):
     """
-    Plot enhanced backtest results.
+    Plot enhanced backtest results with added exit condition analytics.
     
     Parameters:
         df (DataFrame): Results DataFrame
@@ -2148,8 +2168,14 @@ def plot_enhanced_results(df, params, metrics):
     position_changes = df['managed_position'].diff().fillna(0).abs()
     num_trades = int((position_changes != 0).sum())
     
+    # Gather exit statistics
+    max_dd_exits = df['max_drawdown_exits'].max() if 'max_drawdown_exits' in df.columns else 0
+    profit_exits = df['profit_taking_exits'].max() if 'profit_taking_exits' in df.columns else 0
+    trail_exits = df['trailing_stop_exits'].max() if 'trailing_stop_exits' in df.columns else 0
+    
     # Create figure with subplots
-    fig, axs = plt.subplots(5, 1, figsize=(14, 20), gridspec_kw={'height_ratios': [2, 1, 1, 1, 1]})
+    fig, axs = plt.subplots(6, 1, figsize=(14, 24), 
+                           gridspec_kw={'height_ratios': [2, 1, 1, 1, 1, 1]})
     
     # Plot 1: Price and Performance
     ax1 = axs[0]
@@ -2203,8 +2229,10 @@ def plot_enhanced_results(df, params, metrics):
     ax3.axhline(y=0, color='k', linestyle='-', alpha=0.3)
     ax3.axhline(y=1, color='k', linestyle='--', alpha=0.3)
     ax3.axhline(y=-1, color='k', linestyle='--', alpha=0.3)
-    ax3_twin.axhline(y=STRATEGY_CONFIG['sma']['trend_strength_threshold'], color='r', linestyle='--', alpha=0.3)
-    ax3_twin.axhline(y=-STRATEGY_CONFIG['sma']['trend_strength_threshold'], color='r', linestyle='--', alpha=0.3)
+    ax3_twin.axhline(y=STRATEGY_CONFIG['sma']['trend_strength_threshold'], 
+                    color='r', linestyle='--', alpha=0.3)
+    ax3_twin.axhline(y=-STRATEGY_CONFIG['sma']['trend_strength_threshold'], 
+                    color='r', linestyle='--', alpha=0.3)
     
     ax3.set_ylabel('Position')
     ax3_twin.set_ylabel('Trend Strength')
@@ -2221,21 +2249,25 @@ def plot_enhanced_results(df, params, metrics):
     ax4.fill_between(df.index, drawdown * 100, 0, color='red', alpha=0.3)
     ax4.set_ylabel('Drawdown (%)')
     ax4.axhline(y=0, color='k', linestyle='-', alpha=0.3)
-    ax4.axhline(y=STRATEGY_CONFIG['risk_management']['max_drawdown_exit'] * 100, color='r', linestyle='--', alpha=0.5, 
-                label=f'Stop Loss ({STRATEGY_CONFIG["risk_management"]["max_drawdown_exit"] * 100:.0f}%)')
+    ax4.axhline(y=STRATEGY_CONFIG['risk_management']['max_drawdown_exit'] * 100, 
+               color='r', linestyle='--', alpha=0.5, 
+               label=f'Stop Loss ({STRATEGY_CONFIG["risk_management"]["max_drawdown_exit"] * 100:.0f}%)')
     ax4.legend(loc='lower left')
     
     # Plot 5: Moving Averages
     ax5 = axs[4]
-    ax5.set_title(f'Moving Averages (Short: {params["short_window"]}, Long: {params["long_window"]})', fontsize=14)
+    ax5.set_title(f'Moving Averages (Short: {params["short_window"]}, Long: {params["long_window"]})', 
+                 fontsize=14)
     
     # Use subset of data for clarity (last 30% of the data)
     start_idx = int(len(df) * 0.7)
     subset_idx = df.index[start_idx:]
     
     ax5.plot(subset_idx, df.loc[subset_idx, 'close_price'], color='gray', alpha=0.6, label='Price')
-    ax5.plot(subset_idx, df.loc[subset_idx, 'short_ma'], 'g-', alpha=0.8, label=f'Short MA ({params["short_window"]})')
-    ax5.plot(subset_idx, df.loc[subset_idx, 'long_ma'], 'r-', alpha=0.8, label=f'Long MA ({params["long_window"]})')
+    ax5.plot(subset_idx, df.loc[subset_idx, 'short_ma'], 'g-', alpha=0.8, 
+            label=f'Short MA ({params["short_window"]})')
+    ax5.plot(subset_idx, df.loc[subset_idx, 'long_ma'], 'r-', alpha=0.8, 
+            label=f'Long MA ({params["long_window"]})')
     
     # Color background by position
     for i in range(start_idx, len(df)):
@@ -2247,7 +2279,41 @@ def plot_enhanced_results(df, params, metrics):
     ax5.set_ylabel('Price & MAs')
     ax5.legend(loc='upper left')
     
-    # Add strategy performance summary
+    # NEW Plot 6: Risk Management Exits
+    ax6 = axs[5]
+    ax6.set_title('Risk Management Exit Types', fontsize=14)
+    
+    # Create bar chart of exit types
+    exit_types = ['Max Drawdown', 'Profit Taking', 'Trailing Stop']
+    exit_counts = [max_dd_exits, profit_exits, trail_exits]
+    
+    # Calculate percentages
+    total_exits = sum(exit_counts)
+    exit_percentages = [count/total_exits*100 if total_exits > 0 else 0 for count in exit_counts]
+    
+    # Create bar colors
+    exit_colors = ['red', 'green', 'blue']
+    
+    # Create bar chart
+    bars = ax6.bar(exit_types, exit_counts, color=exit_colors, alpha=0.6)
+    
+    # Add count and percentage labels
+    for i, bar in enumerate(bars):
+        height = bar.get_height()
+        if height > 0:
+            ax6.text(bar.get_x() + bar.get_width()/2, height + 0.1,
+                    f'{exit_counts[i]} ({exit_percentages[i]:.1f}%)',
+                    ha='center', va='bottom')
+    
+    ax6.set_ylabel('Number of Exits')
+    ax6.grid(axis='y', linestyle='--', alpha=0.3)
+    
+    # Add warning if no trades
+    if num_trades == 0:
+        warning_text = "WARNING: No trades executed! Check regime opt-out settings."
+        plt.figtext(0.5, 0.5, warning_text, ha='center', va='center', fontsize=20, 
+                   color='red', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+    
     # Calculate regime statistics for summary
     regime_stats = []
     for regime in range(STRATEGY_CONFIG['regime_detection']['n_regimes']):
@@ -2267,12 +2333,7 @@ def plot_enhanced_results(df, params, metrics):
     # Join regime stats with line breaks
     regime_summary = " | ".join(regime_stats)
     
-    # Add warning if no trades
-    if num_trades == 0:
-        warning_text = "WARNING: No trades executed! Check regime opt-out settings."
-        plt.figtext(0.5, 0.5, warning_text, ha='center', va='center', fontsize=20, 
-                   color='red', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-    
+    # Add extended performance summary
     plt.figtext(0.1, 0.01, 
              f"Return: {metrics['total_return']:.2%} | Annual: {metrics['annualized_return']:.2%} | "
              f"Sharpe: {metrics['sharpe_ratio']:.2f} | Sortino: {metrics['sortino_ratio']:.2f} | "
@@ -2281,19 +2342,21 @@ def plot_enhanced_results(df, params, metrics):
              f"Volatility: {metrics['volatility']:.2%} | "
              f"Buy & Hold: {df['buy_hold_cumulative'].iloc[-1] - 1:.2%} | "
              f"Alpha: {metrics['total_return'] - (df['buy_hold_cumulative'].iloc[-1] - 1):.2%}\n"
-             f"Regime Performance: {regime_summary}" +
+             f"Regime Performance: {regime_summary}\n"
+             f"Risk Management: MaxDD Exits: {max_dd_exits}, Profit Exits: {profit_exits}, Trailing Stops: {trail_exits}" +
              (f"\nWARNING: No trades executed during backtest period" if num_trades == 0 else ""),
              ha='left', fontsize=11, bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
     plt.tight_layout()
-    plt.subplots_adjust(bottom=0.09)  # Adjust bottom margin to fit the additional regime info
+    plt.subplots_adjust(bottom=0.12)  # Adjust bottom margin to fit the additional info
     
     # Save the figure
-    plt.savefig(os.path.join(RESULTS_DIR, f'enhanced_sma_results_{CURRENCY.replace("/", "_")}.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(RESULTS_DIR, f'enhanced_sma_results_{CURRENCY.replace("/", "_")}.png'), 
+               dpi=300, bbox_inches='tight')
     plt.close()
     
     print(f"Results plot saved to {os.path.join(RESULTS_DIR, f'enhanced_sma_results_{CURRENCY.replace('/', '_')}.png')}")
-
+    
 def save_enhanced_results(df, params, metrics, cv_results):
     """
     Save enhanced backtest results to files.
@@ -2374,28 +2437,9 @@ def save_enhanced_results(df, params, metrics, cv_results):
             if trade_durations:
                 avg_duration = np.mean(trade_durations)
                 f.write(f"Average Trade Duration: {avg_duration:.2f} hours\n")
-                
-            # Calculate win/loss ratio
-            winning_trades = df['strategy_returns'] > 0
-            losing_trades = df['strategy_returns'] < 0
-            
-            num_winning = winning_trades.sum()
-            num_losing = losing_trades.sum()
-            
-            if num_losing > 0:
-                win_loss_ratio = num_winning / num_losing
-                f.write(f"Win/Loss Ratio: {win_loss_ratio:.2f}\n")
-            
-            # Calculate average profit per trade
-            avg_profit = metrics['total_return'] / num_trades
-            f.write(f"Average Profit per Trade: {avg_profit:.4%}\n")
         
         # Add regime statistics with enhanced metrics
         f.write("\n===== REGIME PERFORMANCE =====\n")
-        
-        # Get the regime position factors
-        regime_position_factors = STRATEGY_CONFIG['regime_detection'].get('regime_position_factors', {})
-        
         for regime in range(STRATEGY_CONFIG['regime_detection']['n_regimes']):
             regime_mask = df['regime'] == regime
             if regime_mask.any():
@@ -2418,27 +2462,15 @@ def save_enhanced_results(df, params, metrics, cv_results):
                 }
                 regime_desc = regime_descriptions.get(regime, f"Regime {regime}")
                 
-                # Get regime position factor
-                position_factor = regime_position_factors.get(regime, 1.0)
-                
                 # Check if this regime has opt-out enabled
                 regime_opt_out = "Enabled" if STRATEGY_CONFIG['regime_detection'].get('regime_opt_out', {}).get(regime, False) else "Disabled"
                 
                 f.write(f"\n{regime_desc} (Regime {regime}):\n")
                 f.write(f"  Opt-out: {regime_opt_out}\n")
-                f.write(f"  Position Size Factor: {position_factor:.2f}\n")
                 f.write(f"  Percentage of time: {regime_pct:.4%}\n")
                 f.write(f"  Strategy return: {regime_return:.4%}\n")
                 f.write(f"  Buy & Hold return: {regime_bh_return:.4%}\n")
                 f.write(f"  Outperformance: {regime_outperformance:.4%}\n")
-                
-                # Get regime-specific parameters
-                if 'regime_specific_parameters' in STRATEGY_CONFIG:
-                    regime_params = STRATEGY_CONFIG['regime_specific_parameters'].get(regime, {})
-                    if regime_params:
-                        f.write(f"  Regime-specific parameters:\n")
-                        for param_name, param_value in regime_params.items():
-                            f.write(f"    {param_name}: {param_value}\n")
                 
                 # Only calculate these metrics if there are returns in this regime
                 if len(regime_returns) > 0 and (regime_returns != 0).any():
@@ -2450,42 +2482,9 @@ def save_enhanced_results(df, params, metrics, cv_results):
                     # Count trades in this regime
                     regime_position_changes = df.loc[regime_mask, 'managed_position'].diff().fillna(0).abs()
                     regime_trades = int((regime_position_changes != 0).sum())
-                    regime_trade_pct = (regime_trades / num_trades) * 100 if num_trades > 0 else 0
-                    f.write(f"  Trades in regime: {regime_trades} ({regime_trade_pct:.2f}% of all trades)\n")
-                    
-                    # Calculate win rate in this regime
-                    if regime_trades > 0:
-                        regime_winning = df.loc[regime_mask & (df['strategy_returns'] > 0), 'strategy_returns'].count()
-                        regime_win_rate = regime_winning / regime_trades
-                        f.write(f"  Win rate in regime: {regime_win_rate:.4%}\n")
+                    f.write(f"  Trades in regime: {regime_trades}\n")
                 else:
                     f.write(f"  No active trades in this regime\n")
-        
-        # Add counter-trend strategy stats if enabled
-        if STRATEGY_CONFIG.get('counter_trend', {}).get('enabled', True):
-            f.write("\n===== COUNTER-TREND STRATEGY =====\n")
-            f.write(f"Enabled: {STRATEGY_CONFIG['counter_trend']['enabled']}\n")
-            f.write(f"Only High Volatility Regime: {STRATEGY_CONFIG['counter_trend'].get('only_high_vol_regime', True)}\n")
-            f.write(f"RSI Period: {STRATEGY_CONFIG['counter_trend'].get('rsi_period', 14)}\n")
-            f.write(f"Oversold Threshold: {STRATEGY_CONFIG['counter_trend'].get('oversold_threshold', 30)}\n")
-            f.write(f"Overbought Threshold: {STRATEGY_CONFIG['counter_trend'].get('overbought_threshold', 70)}\n")
-            f.write(f"Signal Strength: {STRATEGY_CONFIG['counter_trend'].get('signal_strength', 0.5)}\n")
-        
-        # Add volatility-adjusted risk info if enabled
-        if STRATEGY_CONFIG['risk_management'].get('volatility_adjusted_risk', True):
-            f.write("\n===== VOLATILITY-ADJUSTED RISK MANAGEMENT =====\n")
-            f.write("Enabled: True\n")
-            f.write("Risk multipliers by regime:\n")
-            for regime, multiplier in STRATEGY_CONFIG['risk_management']['volatility_risk_multiplier'].items():
-                f.write(f"  Regime {regime}: {multiplier:.2f}\n")
-        
-        # Add dynamic materiality info if enabled
-        if STRATEGY_CONFIG['risk_management'].get('use_dynamic_materiality', True):
-            f.write("\n===== DYNAMIC MATERIALITY THRESHOLDS =====\n")
-            f.write("Enabled: True\n")
-            f.write("Materiality thresholds by regime:\n")
-            for regime, threshold in STRATEGY_CONFIG['dynamic_materiality'].items():
-                f.write(f"  Regime {regime}: {threshold:.4f}\n")
         
         # Add cross-validation summary
         f.write("\n===== CROSS-VALIDATION RESULTS =====\n\n")
