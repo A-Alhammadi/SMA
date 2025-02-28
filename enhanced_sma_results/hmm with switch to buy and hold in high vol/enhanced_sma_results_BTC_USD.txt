@@ -1,0 +1,113 @@
+===== ENHANCED SMA STRATEGY RESULTS =====
+
+Strategy Configuration:
+Trading Frequency: 1H
+Initial Capital: $10,000.00
+Trading Fee: 0.1000% per trade
+
+Optimized Parameters:
+vol_method: standard
+vol_lookback: 90
+short_window: 8
+long_window: 21
+
+Buy & Hold Usage:
+Total periods using buy & hold: 7742 (23.24%)
+Buy & hold period return: 146.5946%
+
+Performance Metrics:
+total_return: 268.2156%
+annualized_return: 40.8857%
+volatility: 7.0279%
+max_drawdown: -50.4235%
+sharpe_ratio: 1.2519
+sortino_ratio: 0.7912
+calmar_ratio: 0.0091
+win_rate: 49.6474%
+gain_to_pain: 1.0593
+
+Buy & Hold Return: 134.8010%
+Outperformance: 133.4145%
+
+Number of Trades: 2026
+Average Trade Duration: 24.37 hours
+
+===== STRATEGY MODE STATISTICS =====
+Active Trading: 10727 periods (32.20%)
+Buy & Hold: 7742 periods (23.24%)
+No Position: 14844 periods (44.56%)
+
+===== REGIME PERFORMANCE =====
+
+Low Volatility (Regime 0):
+  Behavior: Normal Trading
+  Percentage of time: 50.6169%
+  Strategy return: 30.5064%
+  Buy & Hold return: 24.0514%
+  Outperformance: 6.4550%
+  Sharpe: 0.8190
+  Sortino: 0.8637
+  Trades in regime: 1148
+
+Medium Volatility (Regime 1):
+  Behavior: Normal Trading
+  Percentage of time: 26.1429%
+  Strategy return: 14.4160%
+  Buy & Hold return: -22.0323%
+  Outperformance: 36.4483%
+  Sharpe: 1.2711
+  Sortino: 0.6540
+  Trades in regime: 690
+
+High Volatility (Regime 2):
+  Behavior: Buy & Hold
+  Percentage of time: 23.2402%
+  Strategy return: 146.5946%
+  Buy & Hold return: 142.7638%
+  Outperformance: 3.8308%
+  Sharpe: 1.8650
+  Sortino: 1.6615
+  Trades in regime: 0
+
+===== CROSS-VALIDATION RESULTS =====
+
+Fold 1:
+  Parameters: {'vol_method': 'standard', 'vol_lookback': 90, 'short_window': 8, 'long_window': 21}
+  Score: 3.9111
+  Sharpe: 6.3496
+  Sortino: 4.1548
+  Return: 16.7691%
+  Max DD: -1.6331%
+
+Fold 2:
+  Parameters: {'vol_method': 'parkinson', 'vol_lookback': 130, 'short_window': 5, 'long_window': 377}
+  Score: 3.0545
+  Sharpe: 4.8139
+  Sortino: 3.4992
+  Return: 18.0050%
+  Max DD: -2.0719%
+
+Fold 3:
+  Parameters: {'vol_method': 'garch', 'vol_lookback': 90, 'short_window': 8, 'long_window': 21}
+  Score: 2.1073
+  Sharpe: 3.6830
+  Sortino: 2.0268
+  Return: 14.9593%
+  Max DD: -4.2518%
+
+Fold 4:
+  Parameters: {'vol_method': 'standard', 'vol_lookback': 90, 'short_window': 8, 'long_window': 21}
+  Score: 2.3694
+  Sharpe: 3.9769
+  Sortino: 2.4976
+  Return: 22.4034%
+  Max DD: -4.5569%
+
+Fold 5:
+  Parameters: {'vol_method': 'garch', 'vol_lookback': 120, 'short_window': 55, 'long_window': 377}
+  Score: 2.7109
+  Sharpe: 4.9313
+  Sortino: 2.3809
+  Return: 24.9925%
+  Max DD: -5.2503%
+

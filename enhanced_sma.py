@@ -1640,11 +1640,13 @@ def calculate_adaptive_position_size_with_schedule(volatility, regime, timestamp
                                                   target_vol=0.15, max_size=1.0, min_size=0.1,
                                                   rebalance_frequency="daily", 
                                                   materiality_threshold=0.05,
-                                                  regime_opt_out=None):
+                                                  regime_opt_out=None,
+                                                  regime_buy_hold=None):
     """
     Scale position size inversely with volatility using a scheduled rebalancing approach.
-    Position sizing is regime-aware and can opt out of trading in specified regimes.
-    Added debugging info for troubleshooting zero trades issue.
+    Position sizing is regime-aware and can:
+    - Opt out of trading in specified regimes
+    - Switch to buy & hold in specified regimes
     
     Parameters:
         volatility (Series): Volatility series
@@ -1656,15 +1658,28 @@ def calculate_adaptive_position_size_with_schedule(volatility, regime, timestamp
         rebalance_frequency (str): How often to rebalance - "daily", "weekly", or "hourly"
         materiality_threshold (float): Only rebalance if position size change exceeds this percentage
         regime_opt_out (dict): Dictionary specifying which regimes to opt out from trading (True = opt out)
+        regime_buy_hold (dict): Dictionary specifying which regimes to switch to buy & hold (True = buy & hold)
         
     Returns:
-        Series: Position size scaling factor
+        Series: Position size scaling factor and buy & hold mask
     """
     # Print debugging info
     print("\nPOSITION SIZING DEBUG:")
     print(f"Target volatility: {target_vol}")
     print(f"Min size: {min_size}, Max size: {max_size}")
     print(f"Materiality threshold: {materiality_threshold}")
+    
+    # Create a buy & hold mask (True where buy & hold should be applied)
+    buy_hold_mask = pd.Series(False, index=regime.index)
+    
+    # Apply buy & hold for specific regimes if specified
+    if regime_buy_hold is not None:
+        for r, use_buy_hold in regime_buy_hold.items():
+            if use_buy_hold:
+                # Mark this regime for buy & hold
+                buy_hold_mask[regime == r] = True
+                regime_count = (regime == r).sum()
+                print(f"Applied buy & hold for regime {r}: {regime_count} periods affected")
     
     # Avoid division by zero
     safe_volatility = volatility.replace(0, volatility.median())
@@ -1732,6 +1747,11 @@ def calculate_adaptive_position_size_with_schedule(volatility, regime, timestamp
     zero_after_rebalance = (rebalanced_scale == 0).sum()
     print(f"Zero positions after rebalancing: {zero_after_rebalance}")
     
+    # Print buy & hold info
+    if regime_buy_hold is not None:
+        buy_hold_count = buy_hold_mask.sum()
+        print(f"\nBuy & Hold strategy applied to {buy_hold_count} periods ({buy_hold_count/len(regime)*100:.2f}%)")
+    
     # Final position size stats
     print(f"\nFinal position sizing stats:")
     print(f"Min: {rebalanced_scale.min()}")
@@ -1739,7 +1759,7 @@ def calculate_adaptive_position_size_with_schedule(volatility, regime, timestamp
     print(f"Mean: {rebalanced_scale.mean():.4f}")
     print(f"Zero positions: {(rebalanced_scale == 0).sum()} out of {len(rebalanced_scale)}")
     
-    return rebalanced_scale
+    return rebalanced_scale, buy_hold_mask
 
 def apply_rebalancing_schedule(position_scale, timestamp, frequency="daily", materiality_threshold=0.05):
     """
@@ -1929,6 +1949,9 @@ def apply_enhanced_sma_strategy(df, params, config):
     # Get regime opt-out settings
     regime_opt_out = config['regime_detection'].get('regime_opt_out', None)
     
+    # Get regime buy & hold settings
+    regime_buy_hold = config['regime_detection'].get('regime_buy_hold', None)
+    
     # Print opt-out settings for debugging
     print("\nREGIME OPT-OUT SETTINGS (DEBUGGING):")
     if regime_opt_out:
@@ -1937,8 +1960,17 @@ def apply_enhanced_sma_strategy(df, params, config):
     else:
         print("No regime opt-out settings found - trading enabled in all regimes")
     
+    # Print buy & hold settings for debugging
+    print("\nREGIME BUY & HOLD SETTINGS (DEBUGGING):")
+    if regime_buy_hold:
+        for regime, buy_hold in regime_buy_hold.items():
+            print(f"Regime {regime}: {'Buy & Hold' if buy_hold else 'Use strategy'}")
+    else:
+        print("No regime buy & hold settings found - using strategy in all regimes")
+    
     # Calculate position size based on volatility with reduced trading frequency
-    position_size = calculate_adaptive_position_size_with_schedule(
+    # Now also returns buy_hold_mask to indicate where to apply buy & hold
+    position_size, buy_hold_mask = calculate_adaptive_position_size_with_schedule(
         volatility,
         regimes,
         df.index,
@@ -1947,7 +1979,8 @@ def apply_enhanced_sma_strategy(df, params, config):
         min_size=config['risk_management']['min_position_size'],
         rebalance_frequency="daily",  # Rebalance daily instead of continuously
         materiality_threshold=materiality_threshold,
-        regime_opt_out=regime_opt_out
+        regime_opt_out=regime_opt_out,
+        regime_buy_hold=regime_buy_hold
     )
     
     # Check position sizes for debugging
@@ -1961,6 +1994,19 @@ def apply_enhanced_sma_strategy(df, params, config):
     
     # Apply position sizing
     sized_position = position * position_size
+    
+    # Apply buy & hold strategy where indicated
+    # For buy & hold, we override strategy signals and stay long (1) at max position size
+    if buy_hold_mask.any():
+        print("\nApplying buy & hold strategy to specified regimes...")
+        # Create buy & hold position (long position with max size)
+        max_position_size = config['risk_management']['max_position_size']
+        
+        # Override the position with buy & hold where mask is True
+        sized_position[buy_hold_mask] = 1 * max_position_size
+        
+        # Print stats about buy & hold application
+        print(f"Buy & hold applied to {buy_hold_mask.sum()} periods")
     
     # Check positions after sizing for debugging
     sized_counts = sized_position.value_counts()
@@ -1993,14 +2039,39 @@ def apply_enhanced_sma_strategy(df, params, config):
             trade_returns.iloc[i] = 0
     
     # Apply unified risk management instead of separate functions
-    managed_position, exit_stats = apply_unified_risk_management(
-        df,
-        sized_position,
-        returns,
-        volatility,
-        regimes,
-        config['risk_management']
-    )
+    # But don't apply risk management to buy & hold periods
+    managed_position = sized_position.copy()
+    non_buy_hold_mask = ~buy_hold_mask
+    
+    # Only apply risk management to non-buy & hold periods
+    if non_buy_hold_mask.any():
+        # Create temporary series excluding buy & hold periods
+        temp_position = sized_position[non_buy_hold_mask].copy()
+        temp_returns = returns[non_buy_hold_mask].copy()
+        temp_volatility = volatility[non_buy_hold_mask].copy()
+        temp_regimes = regimes[non_buy_hold_mask].copy()
+        temp_df = df.loc[non_buy_hold_mask].copy()
+        
+        # Apply risk management to non-buy & hold periods
+        temp_managed, exit_stats = apply_unified_risk_management(
+            temp_df,
+            temp_position,
+            temp_returns,
+            temp_volatility,
+            temp_regimes,
+            config['risk_management']
+        )
+        
+        # Copy managed positions back to the original series
+        managed_position.loc[non_buy_hold_mask] = temp_managed.values
+    else:
+        # No non-buy & hold periods, so use empty exit stats
+        exit_stats = {
+            'max_drawdown_exits': 0,
+            'profit_taking_exits': 0,
+            'trailing_stop_exits': 0,
+            'total_trades': 0
+        }
     
     # Calculate position changes (when a trade occurs)
     position_changes = managed_position.diff().fillna(0).abs()
@@ -2037,7 +2108,8 @@ def apply_enhanced_sma_strategy(df, params, config):
         'strategy_returns': strategy_returns,
         'strategy_cumulative': strategy_cumulative,
         'buy_hold_cumulative': buy_hold_cumulative,
-        'trade_returns': trade_returns
+        'trade_returns': trade_returns,
+        'buy_hold_mask': buy_hold_mask  # Add the buy & hold mask to the results
     })
     
     # Add exit statistics to result_df for analysis
@@ -2056,6 +2128,16 @@ def apply_enhanced_sma_strategy(df, params, config):
     print(f"Profit Taking Exits: {exit_stats['profit_taking_exits']}")
     print(f"Trailing Stop Exits: {exit_stats['trailing_stop_exits']}")
     print(f"Total Trades: {exit_stats['total_trades']}")
+    
+    # Print buy & hold summary
+    if buy_hold_mask.any():
+        print(f"\nBuy & Hold Summary:")
+        print(f"Total periods with buy & hold: {buy_hold_mask.sum()} ({buy_hold_mask.mean()*100:.2f}%)")
+        
+        # Calculate performance during buy & hold periods
+        bh_returns = returns[buy_hold_mask]
+        bh_cumulative = (1 + bh_returns).cumprod().iloc[-1] if len(bh_returns) > 0 else 1
+        print(f"Buy & hold performance: {bh_cumulative - 1:.4%}")
     
     print(f"\nStrategy applied with {num_trades} trades")
     
@@ -2148,9 +2230,10 @@ def run_enhanced_backtest():
         traceback.print_exc()
         return None, None, None
 
+# Update the visualization to highlight buy & hold periods
 def plot_enhanced_results(df, params, metrics):
     """
-    Plot enhanced backtest results with added exit condition analytics.
+    Plot enhanced backtest results with added exit condition analytics and buy & hold visualization.
     
     Parameters:
         df (DataFrame): Results DataFrame
@@ -2173,6 +2256,11 @@ def plot_enhanced_results(df, params, metrics):
     profit_exits = df['profit_taking_exits'].max() if 'profit_taking_exits' in df.columns else 0
     trail_exits = df['trailing_stop_exits'].max() if 'trailing_stop_exits' in df.columns else 0
     
+    # Check if buy & hold was used
+    buy_hold_used = 'buy_hold_mask' in df.columns and df['buy_hold_mask'].any()
+    buy_hold_periods = df['buy_hold_mask'].sum() if buy_hold_used else 0
+    buy_hold_pct = (buy_hold_periods / len(df)) * 100 if buy_hold_used else 0
+    
     # Create figure with subplots
     fig, axs = plt.subplots(6, 1, figsize=(14, 24), 
                            gridspec_kw={'height_ratios': [2, 1, 1, 1, 1, 1]})
@@ -2183,10 +2271,27 @@ def plot_enhanced_results(df, params, metrics):
     ax1.plot(df.index, df['close_price'], color='gray', alpha=0.6, label='Price')
     ax1_twin = ax1.twinx()
     ax1_twin.plot(df.index, df['strategy_cumulative'] * INITIAL_CAPITAL, 'b-', label='Strategy')
-    ax1_twin.plot(df.index, df['buy_hold_cumulative'] * INITIAL_CAPITAL, 'r--', label='Buy & Hold')
+    ax1_twin.plot(df.index, df['buy_hold_cumulative'] * INITIAL_CAPITAL, 'r--', label='Market Buy & Hold')
+    
+    # Highlight buy & hold periods if used
+    if buy_hold_used:
+        buy_hold_mask = df['buy_hold_mask']
+        for i in range(len(df) - 1):
+            if buy_hold_mask.iloc[i]:
+                ax1.axvspan(df.index[i], df.index[i+1], color='gold', alpha=0.2)
+    
     ax1.set_ylabel('Price')
     ax1_twin.set_ylabel('Portfolio Value ($)')
-    ax1_twin.legend(loc='upper left')
+    
+    # Create a combined legend
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax1_twin.get_legend_handles_labels()
+    if buy_hold_used:
+        from matplotlib.patches import Patch
+        buy_hold_patch = Patch(color='gold', alpha=0.2, label='Buy & Hold Periods')
+        ax1.legend(lines1 + lines2 + [buy_hold_patch], labels1 + labels2 + ['Buy & Hold Periods'], loc='upper left')
+    else:
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
     
     # Plot 2: Volatility and Regimes
     ax2 = axs[1]
@@ -2197,6 +2302,7 @@ def plot_enhanced_results(df, params, metrics):
     regime_colors = ['green', 'gray', 'red']
     regime_labels = ['Low Vol', 'Medium Vol', 'High Vol']
     regime_opt_out = STRATEGY_CONFIG['regime_detection'].get('regime_opt_out', {})
+    regime_buy_hold = STRATEGY_CONFIG['regime_detection'].get('regime_buy_hold', {})
     
     for regime in range(STRATEGY_CONFIG['regime_detection']['n_regimes']):
         regime_mask = df['regime'] == regime
@@ -2204,9 +2310,11 @@ def plot_enhanced_results(df, params, metrics):
             color = regime_colors[regime]
             label = f'{regime_labels[regime]}'
             
-            # Add "(Opt-out)" to label if this regime has opt-out enabled
+            # Add "(Opt-out)" or "(Buy & Hold)" to label if this regime has special behavior
             if regime_opt_out.get(regime, False):
                 label += " (Opt-out)"
+            elif regime_buy_hold.get(regime, False):
+                label += " (Buy & Hold)"
                 
             ax2.fill_between(df.index, 0, df['volatility'].max(), where=regime_mask, 
                              color=color, alpha=0.2, label=label)
@@ -2220,6 +2328,13 @@ def plot_enhanced_results(df, params, metrics):
     ax3.plot(df.index, df['raw_signal'], 'k--', alpha=0.5, label='Raw Signal')
     ax3.plot(df.index, df['filtered_signal'], 'g-', alpha=0.7, label='Filtered Signal')
     ax3.plot(df.index, df['managed_position'], 'b-', linewidth=1.5, label='Final Position')
+    
+    # Highlight buy & hold periods if used
+    if buy_hold_used:
+        buy_hold_mask = df['buy_hold_mask']
+        for i in range(len(df) - 1):
+            if buy_hold_mask.iloc[i]:
+                ax3.axvspan(df.index[i], df.index[i+1], color='gold', alpha=0.2)
     
     # Highlight trend strength
     ax3_twin = ax3.twinx()
@@ -2240,13 +2355,26 @@ def plot_enhanced_results(df, params, metrics):
     # Create combined legend
     lines1, labels1 = ax3.get_legend_handles_labels()
     lines2, labels2 = ax3_twin.get_legend_handles_labels()
-    ax3.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+    if buy_hold_used:
+        from matplotlib.patches import Patch
+        buy_hold_patch = Patch(color='gold', alpha=0.2, label='Buy & Hold Periods')
+        ax3.legend(lines1 + lines2 + [buy_hold_patch], labels1 + labels2 + ['Buy & Hold Periods'], loc='upper left')
+    else:
+        ax3.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
     
     # Plot 4: Drawdown
     ax4 = axs[3]
     drawdown = df['strategy_cumulative'] / df['strategy_cumulative'].cummax() - 1
     ax4.set_title(f'Drawdown (Max: {metrics["max_drawdown"]:.2%})', fontsize=14)
     ax4.fill_between(df.index, drawdown * 100, 0, color='red', alpha=0.3)
+    
+    # Highlight buy & hold periods in drawdown chart if used
+    if buy_hold_used:
+        buy_hold_mask = df['buy_hold_mask']
+        for i in range(len(df) - 1):
+            if buy_hold_mask.iloc[i]:
+                ax4.axvspan(df.index[i], df.index[i+1], color='gold', alpha=0.2)
+    
     ax4.set_ylabel('Drawdown (%)')
     ax4.axhline(y=0, color='k', linestyle='-', alpha=0.3)
     ax4.axhline(y=STRATEGY_CONFIG['risk_management']['max_drawdown_exit'] * 100, 
@@ -2269,44 +2397,72 @@ def plot_enhanced_results(df, params, metrics):
     ax5.plot(subset_idx, df.loc[subset_idx, 'long_ma'], 'r-', alpha=0.8, 
             label=f'Long MA ({params["long_window"]})')
     
-    # Color background by position
-    for i in range(start_idx, len(df)):
-        if df['managed_position'].iloc[i] > 0:
-            ax5.axvspan(df.index[i-1], df.index[i], color='green', alpha=0.1)
+    # Color background by position and highlight buy & hold
+    for i in range(start_idx, len(df) - 1):
+        if buy_hold_used and df['buy_hold_mask'].iloc[i]:
+            ax5.axvspan(df.index[i], df.index[i+1], color='gold', alpha=0.2)
+        elif df['managed_position'].iloc[i] > 0:
+            ax5.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.1)
         elif df['managed_position'].iloc[i] < 0:
-            ax5.axvspan(df.index[i-1], df.index[i], color='red', alpha=0.1)
+            ax5.axvspan(df.index[i], df.index[i+1], color='red', alpha=0.1)
     
     ax5.set_ylabel('Price & MAs')
-    ax5.legend(loc='upper left')
     
-    # NEW Plot 6: Risk Management Exits
+    # Add legend with buy & hold if used
+    if buy_hold_used:
+        from matplotlib.patches import Patch
+        buy_hold_patch = Patch(color='gold', alpha=0.2, label='Buy & Hold Periods')
+        green_patch = Patch(color='green', alpha=0.1, label='Long Position')
+        red_patch = Patch(color='red', alpha=0.1, label='Short Position')
+        ax5.legend(loc='upper left')
+    else:
+        ax5.legend(loc='upper left')
+    
+    # NEW Plot 6: Strategy Mode Analysis
     ax6 = axs[5]
-    ax6.set_title('Risk Management Exit Types', fontsize=14)
     
-    # Create bar chart of exit types
-    exit_types = ['Max Drawdown', 'Profit Taking', 'Trailing Stop']
-    exit_counts = [max_dd_exits, profit_exits, trail_exits]
-    
-    # Calculate percentages
-    total_exits = sum(exit_counts)
-    exit_percentages = [count/total_exits*100 if total_exits > 0 else 0 for count in exit_counts]
-    
-    # Create bar colors
-    exit_colors = ['red', 'green', 'blue']
-    
-    # Create bar chart
-    bars = ax6.bar(exit_types, exit_counts, color=exit_colors, alpha=0.6)
-    
-    # Add count and percentage labels
-    for i, bar in enumerate(bars):
-        height = bar.get_height()
-        if height > 0:
-            ax6.text(bar.get_x() + bar.get_width()/2, height + 0.1,
-                    f'{exit_counts[i]} ({exit_percentages[i]:.1f}%)',
-                    ha='center', va='bottom')
-    
-    ax6.set_ylabel('Number of Exits')
-    ax6.grid(axis='y', linestyle='--', alpha=0.3)
+    if buy_hold_used:
+        ax6.set_title('Strategy Mode Analysis', fontsize=14)
+        
+        # Create data for pie chart
+        labels = ['Strategy Trading', 'Buy & Hold', 'No Position']
+        strategy_periods = len(df) - buy_hold_periods - (df['managed_position'] == 0).sum()
+        no_position_periods = (df['managed_position'] == 0).sum()
+        
+        sizes = [strategy_periods, buy_hold_periods, no_position_periods]
+        explode = (0.1, 0.1, 0)  # explode the first two slices
+        
+        ax6.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',
+                shadow=True, startangle=90)
+        ax6.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle
+    else:
+        # If buy & hold not used, use original exit type chart
+        ax6.set_title('Risk Management Exit Types', fontsize=14)
+        
+        # Create bar chart of exit types
+        exit_types = ['Max Drawdown', 'Profit Taking', 'Trailing Stop']
+        exit_counts = [max_dd_exits, profit_exits, trail_exits]
+        
+        # Calculate percentages
+        total_exits = sum(exit_counts)
+        exit_percentages = [count/total_exits*100 if total_exits > 0 else 0 for count in exit_counts]
+        
+        # Create bar colors
+        exit_colors = ['red', 'green', 'blue']
+        
+        # Create bar chart
+        bars = ax6.bar(exit_types, exit_counts, color=exit_colors, alpha=0.6)
+        
+        # Add count and percentage labels
+        for i, bar in enumerate(bars):
+            height = bar.get_height()
+            if height > 0:
+                ax6.text(bar.get_x() + bar.get_width()/2, height + 0.1,
+                        f'{exit_counts[i]} ({exit_percentages[i]:.1f}%)',
+                        ha='center', va='bottom')
+        
+        ax6.set_ylabel('Number of Exits')
+        ax6.grid(axis='y', linestyle='--', alpha=0.3)
     
     # Add warning if no trades
     if num_trades == 0:
@@ -2319,6 +2475,14 @@ def plot_enhanced_results(df, params, metrics):
     for regime in range(STRATEGY_CONFIG['regime_detection']['n_regimes']):
         regime_mask = df['regime'] == regime
         if regime_mask.any():
+            # Get the behavior for this regime
+            regime_behavior = "Normal"
+            if STRATEGY_CONFIG['regime_detection'].get('regime_opt_out', {}).get(regime, False):
+                regime_behavior = "Opt-out"
+            elif STRATEGY_CONFIG['regime_detection'].get('regime_buy_hold', {}).get(regime, False):
+                regime_behavior = "Buy & Hold"
+            
+            # Calculate returns
             regime_returns = df.loc[regime_mask, 'strategy_returns']
             regime_return = (1 + regime_returns).prod() - 1 if len(regime_returns) > 0 else 0
             
@@ -2328,7 +2492,7 @@ def plot_enhanced_results(df, params, metrics):
             
             # Calculate outperformance
             outperf = regime_return - regime_bh_return
-            regime_stats.append(f"Regime {regime}: {regime_return:.1%} vs B&H {regime_bh_return:.1%} ({outperf:.1%})")
+            regime_stats.append(f"Regime {regime} ({regime_behavior}): {regime_return:.1%} vs B&H {regime_bh_return:.1%} ({outperf:.1%})")
     
     # Join regime stats with line breaks
     regime_summary = " | ".join(regime_stats)
@@ -2343,6 +2507,7 @@ def plot_enhanced_results(df, params, metrics):
              f"Buy & Hold: {df['buy_hold_cumulative'].iloc[-1] - 1:.2%} | "
              f"Alpha: {metrics['total_return'] - (df['buy_hold_cumulative'].iloc[-1] - 1):.2%}\n"
              f"Regime Performance: {regime_summary}\n"
+             f"Strategy Modes: Active Trading: {strategy_periods/len(df)*100:.1f}%, Buy & Hold: {buy_hold_pct:.1f}%, No Position: {no_position_periods/len(df)*100:.1f}%" if buy_hold_used else
              f"Risk Management: MaxDD Exits: {max_dd_exits}, Profit Exits: {profit_exits}, Trailing Stops: {trail_exits}" +
              (f"\nWARNING: No trades executed during backtest period" if num_trades == 0 else ""),
              ha='left', fontsize=11, bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
@@ -2356,7 +2521,9 @@ def plot_enhanced_results(df, params, metrics):
     plt.close()
     
     print(f"Results plot saved to {os.path.join(RESULTS_DIR, f'enhanced_sma_results_{CURRENCY.replace('/', '_')}.png')}")
-    
+
+# Update the save_enhanced_results function to include buy & hold info
+
 def save_enhanced_results(df, params, metrics, cv_results):
     """
     Save enhanced backtest results to files.
@@ -2378,6 +2545,10 @@ def save_enhanced_results(df, params, metrics, cv_results):
     position_changes = df['managed_position'].diff().fillna(0).abs()
     num_trades = int((position_changes != 0).sum())
     
+    # Check if buy & hold was used
+    buy_hold_used = 'buy_hold_mask' in df.columns and df['buy_hold_mask'].any()
+    buy_hold_periods = df['buy_hold_mask'].sum() if buy_hold_used else 0
+    
     # Save parameters and metrics
     results_file = os.path.join(RESULTS_DIR, f'enhanced_sma_results_{CURRENCY.replace("/", "_")}.txt')
     with open(results_file, 'w') as f:
@@ -2397,6 +2568,17 @@ def save_enhanced_results(df, params, metrics, cv_results):
         if num_trades == 0:
             f.write("WARNING: No trades were executed during the backtest period.\n")
             f.write("This may be due to all regimes being set to opt-out or other restrictive settings.\n\n")
+        
+        # Add buy & hold information if used
+        if buy_hold_used:
+            f.write("Buy & Hold Usage:\n")
+            f.write(f"Total periods using buy & hold: {buy_hold_periods} ({buy_hold_periods/len(df)*100:.2f}%)\n")
+            
+            # Calculate performance during buy & hold periods
+            if buy_hold_periods > 0:
+                bh_returns = df.loc[df['buy_hold_mask'], 'strategy_returns']
+                bh_return = (1 + bh_returns).prod() - 1 if len(bh_returns) > 0 else 0
+                f.write(f"Buy & hold period return: {bh_return:.4%}\n\n")
         
         f.write("Performance Metrics:\n")
         for key, value in metrics.items():
@@ -2438,6 +2620,16 @@ def save_enhanced_results(df, params, metrics, cv_results):
                 avg_duration = np.mean(trade_durations)
                 f.write(f"Average Trade Duration: {avg_duration:.2f} hours\n")
         
+        # Add strategy mode statistics if buy & hold was used
+        if buy_hold_used:
+            f.write("\n===== STRATEGY MODE STATISTICS =====\n")
+            strategy_periods = len(df) - buy_hold_periods - (df['managed_position'] == 0).sum()
+            no_position_periods = (df['managed_position'] == 0).sum()
+            
+            f.write(f"Active Trading: {strategy_periods} periods ({strategy_periods/len(df)*100:.2f}%)\n")
+            f.write(f"Buy & Hold: {buy_hold_periods} periods ({buy_hold_periods/len(df)*100:.2f}%)\n")
+            f.write(f"No Position: {no_position_periods} periods ({no_position_periods/len(df)*100:.2f}%)\n")
+        
         # Add regime statistics with enhanced metrics
         f.write("\n===== REGIME PERFORMANCE =====\n")
         for regime in range(STRATEGY_CONFIG['regime_detection']['n_regimes']):
@@ -2462,11 +2654,15 @@ def save_enhanced_results(df, params, metrics, cv_results):
                 }
                 regime_desc = regime_descriptions.get(regime, f"Regime {regime}")
                 
-                # Check if this regime has opt-out enabled
-                regime_opt_out = "Enabled" if STRATEGY_CONFIG['regime_detection'].get('regime_opt_out', {}).get(regime, False) else "Disabled"
+                # Check behavior for this regime
+                regime_behavior = "Normal Trading"
+                if STRATEGY_CONFIG['regime_detection'].get('regime_opt_out', {}).get(regime, False):
+                    regime_behavior = "Opt-out (Liquidate)"
+                elif STRATEGY_CONFIG['regime_detection'].get('regime_buy_hold', {}).get(regime, False):
+                    regime_behavior = "Buy & Hold"
                 
                 f.write(f"\n{regime_desc} (Regime {regime}):\n")
-                f.write(f"  Opt-out: {regime_opt_out}\n")
+                f.write(f"  Behavior: {regime_behavior}\n")
                 f.write(f"  Percentage of time: {regime_pct:.4%}\n")
                 f.write(f"  Strategy return: {regime_return:.4%}\n")
                 f.write(f"  Buy & Hold return: {regime_bh_return:.4%}\n")

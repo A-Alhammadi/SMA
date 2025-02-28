@@ -32,13 +32,13 @@ TRADING_FEE_PCT = 0.001  # Example: 0.1% trading fee per trade
 STRATEGY_CONFIG = {
     # Volatility calculation settings
     'volatility': {
-        'methods': ['parkinson', 'garch', 'yang_zhang'],  # Different volatility calculation methods
-        'lookback_periods': [20, 50, 100],  # Different lookback periods for volatility
+        'methods': ['parkinson', 'garch', 'yang_zhang', 'standard'],  # Added standard method
+        'lookback_periods': [80, 90, 110, 120, 130],  # Expanded lookback periods
         'regime_smoothing': 5,  # Days to smooth regime transitions
         'min_history_multiplier': 5,  # Minimum history required as multiplier of lookback
     },
     
-    # Regime detection settings - now using HMM as default
+    # Regime detection settings
     'regime_detection': {
         'method': 'hmm',  # Options: 'kmeans', 'kde', 'quantile', 'hmm'
         'n_regimes': 3,  # Number of distinct volatility regimes
@@ -47,28 +47,35 @@ STRATEGY_CONFIG = {
         'regime_opt_out': {
             0: False,  # Low volatility regime - False means trade normally in this regime
             1: False,  # Medium volatility regime - False means trade normally in this regime
-            2: True   # High volatility regime - True means liquidate positions when entering this regime
+            2: False   # High volatility regime - False means trade normally in this regime
+                # Set to True to liquidate positions when entering this regime
+        },
+        'regime_buy_hold': {
+            0: False,  # Low volatility regime - False means use strategy signals in this regime
+            1: False,  # Medium volatility regime - False means use strategy signals in this regime
+            2: True   # High volatility regime - False means use strategy signals in this regime
+                # Set to True to switch to buy & hold when entering this regime
         }
     },
     
     # SMA strategy settings
     'sma': {
-        'short_windows': [5, 8, 13, 21, 34],  # Fibonacci-based short windows
-        'long_windows': [21, 34, 55, 89, 144],  # Fibonacci-based long windows
+        'short_windows': [5, 8, 34, 55, 89],  # Extended Fibonacci-based short windows
+        'long_windows': [21, 377],  # Extended Fibonacci-based long windows
         'min_holding_period': 24,  # Minimum holding period in hours
         'trend_filter_period': 200,  # Period for trend strength calculation
         'trend_strength_threshold': 0.3,  # Minimum trend strength to take a position
     },
     
-    # Risk management settings - balanced to avoid conflicts
+    # Risk management settings
     'risk_management': {
         'target_volatility': 0.15,  # Target annualized volatility
         'max_position_size': 1.0,  # Maximum position size
         'min_position_size': 0.1,  # Minimum position size
-        'max_drawdown_exit': 0.12,  # Exit if drawdown exceeds this threshold (reduced from 0.15)
-        'profit_taking_threshold': 0.08,  # Take profit at this threshold (increased from 0.05)
-        'trailing_stop_activation': 0.06,  # Activate trailing stop after this gain (increased from 0.05)
-        'trailing_stop_distance': 0.03,  # Trailing stop distance (increased from 0.02)
+        'max_drawdown_exit': 0.12,  # Exit if drawdown exceeds this threshold
+        'profit_taking_threshold': 0.08,  # Take profit at this threshold
+        'trailing_stop_activation': 0.06,  # Activate trailing stop after this gain
+        'trailing_stop_distance': 0.03,  # Trailing stop distance
         'materiality_threshold': 0.05,  # Only rebalance if position size change exceeds this percentage
     },
     

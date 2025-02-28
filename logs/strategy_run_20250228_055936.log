@@ -1,0 +1,92 @@
+================================================================================
+Enhanced SMA Strategy Runner
+Started at: 2025-02-28 05:59:36
+Logging to: logs\strategy_run_20250228_055936.log
+================================================================================
+
+Running enhanced SMA backtest...
+Starting enhanced SMA backtest for BTC/USD
+Connection pool initialized with 1-10 connections
+Successfully acquired connection from pool
+Fetching data from 2018-05-20 to 2024-10-20
+
+Fetching data for BTC/USD:
+Start: 2018-05-20
+End: 2024-10-20
+Fetched 56281 hourly records
+Date range: 2018-05-20 00:00:00 to 2024-10-20 00:00:00
+Optimizing parameters with time series cross-validation...
+
+CV Fold 1/5:
+  Training: 2018-05-20 to 2018-08-18
+  Validation: 2018-08-18 to 2018-09-17
+  Tested 50/1092 parameter combinations
+  Tested 100/1092 parameter combinations
+  Tested 150/1092 parameter combinations
+  Tested 200/1092 parameter combinations
+  Tested 250/1092 parameter combinations
+  Tested 300/1092 parameter combinations
+  Tested 350/1092 parameter combinations
+  Tested 400/1092 parameter combinations
+  Tested 450/1092 parameter combinations
+  Tested 500/1092 parameter combinations
+  Tested 550/1092 parameter combinations
+  Tested 600/1092 parameter combinations
+  Tested 650/1092 parameter combinations
+  Tested 700/1092 parameter combinations
+  Tested 750/1092 parameter combinations
+  Tested 800/1092 parameter combinations
+  Tested 850/1092 parameter combinations
+  Tested 900/1092 parameter combinations
+  Tested 950/1092 parameter combinations
+  Tested 1000/1092 parameter combinations
+  Tested 1050/1092 parameter combinations
+  Tested 1092/1092 parameter combinations
+  Best parameters for fold 1:
+    {'vol_method': 'parkinson', 'vol_lookback': 90, 'short_window': 8, 'long_window': 21}
+  Best score: 3.6128
+  Sharpe: 5.7606, Sortino: 3.9897, Calmar: 0.3723
+  Return: 15.5918%, Max DD: -1.7061%
+
+CV Fold 2/5:
+  Training: 2018-05-20 to 2018-09-17
+  Validation: 2018-09-17 to 2018-10-17
+  Tested 50/1092 parameter combinations
+  Tested 100/1092 parameter combinations
+  Tested 150/1092 parameter combinations
+  Tested 200/1092 parameter combinations
+  Tested 250/1092 parameter combinations
+  Tested 300/1092 parameter combinations
+  Tested 350/1092 parameter combinations
+  Tested 400/1092 parameter combinations
+  Tested 450/1092 parameter combinations
+  Tested 500/1092 parameter combinations
+  Tested 550/1092 parameter combinations
+Traceback (most recent call last):
+  File "C:\Users\haman\Dropbox\My PC (LAPTOP-QV7RR5UL)\Desktop\Sma\run_strategy.py", line 55, in <module>
+    result_df, best_params, metrics = run_enhanced_backtest()
+                                      ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\haman\Dropbox\My PC (LAPTOP-QV7RR5UL)\Desktop\Sma\enhanced_sma.py", line 2095, in run_enhanced_backtest
+    best_params, cv_results = optimize_parameters_with_cv(df, STRATEGY_CONFIG, splits)
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\haman\Dropbox\My PC (LAPTOP-QV7RR5UL)\Desktop\Sma\enhanced_sma.py", line 1497, in optimize_parameters_with_cv
+    managed_position = apply_stop_loss(
+        sized_position,
+    ...<2 lines>...
+        max_drawdown=config['risk_management']['max_drawdown_exit']
+    )
+  File "C:\Users\haman\Dropbox\My PC (LAPTOP-QV7RR5UL)\Desktop\Sma\enhanced_sma.py", line 842, in apply_stop_loss
+    if position.iloc[i] == position.iloc[i-1] and position.iloc[i] != 0:
+                           ~~~~~~~~~~~~~^^^^^
+  File "C:\Users\haman\AppData\Local\Programs\Python\Python313\Lib\site-packages\pandas\core\indexing.py", line 1191, in __getitem__
+    return self._getitem_axis(maybe_callable, axis=axis)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\haman\AppData\Local\Programs\Python\Python313\Lib\site-packages\pandas\core\indexing.py", line 1752, in _getitem_axis
+    self._validate_integer(key, axis)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\haman\AppData\Local\Programs\Python\Python313\Lib\site-packages\pandas\core\indexing.py", line 1683, in _validate_integer
+    len_axis = len(self.obj._get_axis(axis))
+  File "C:\Users\haman\AppData\Local\Programs\Python\Python313\Lib\site-packages\pandas\core\indexes\base.py", line 909, in __len__
+    def __len__(self) -> int:
+    
+KeyboardInterrupt
